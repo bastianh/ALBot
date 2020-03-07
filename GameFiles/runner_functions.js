@@ -323,6 +323,18 @@ function in_attack_range(target) // also works for priests/heal
     return false;
 }
 
+function is_in_range(target,skill)
+{
+    // Valid usages: is_in_range(target), is_in_range(target,"attack"), is_in_range(target,"heal"), is_in_range(target,"mentalburst")
+    if(!target || !target.visible) return false;
+    // When a target leaves your viewpoint, .visible becomes false and the object reference is never updated again
+    var range_multiplier=1,range_bonus=0;
+    if(G.skills[skill] && G.skills[skill].range_multiplier) range_multiplier=G.skills[skill].range_multiplier;
+    if(G.skills[skill] && G.skills[skill].range_bonus) range_bonus=G.skills[skill].range_bonus;
+    if(parent.distance(character,target)<=character.range*range_multiplier+range_bonus) return true;
+    return false;
+}
+
 function can_attack(target) // also works for priests/heal
 {
     // is_disabled function checks .rip and .stunned

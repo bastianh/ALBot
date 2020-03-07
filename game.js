@@ -172,6 +172,7 @@ Game.prototype.init = function () {
         activate: activate,
         shift: shift,
         use_skill: use_skill,
+        is_in_range: is_in_range,
         can_use: can_use,
         socket: socket,
         add_log: add_log,
