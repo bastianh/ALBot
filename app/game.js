@@ -1,7 +1,7 @@
 /**
  * Created by nexus on 03/04/17.
  */
-
+global.fetch = require("node-fetch");
 process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
