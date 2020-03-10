@@ -59,6 +59,7 @@ var Executor = function (glob, file) {
             on_destroy: {get: () => on_destroy},
             on_draw: {get: () => on_draw},
             on_game_event: {get: () => on_game_event},
+            trigger_event:{get:()=>trigger_event},
             trigger_character_event:{get:()=>trigger_character_event}
         });
     }
