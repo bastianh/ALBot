@@ -121,6 +121,14 @@ The character name is irrelevant when running ALBot. The bot will use the charac
 ## Running your own code
 The default code located at `./CODE/default.js`, the runScript entry in `userData.json` corresponds with the name of the script that should be run for the character. The environment is fundamentally the same as a browser with some exceptions, for example references to window, document, and PIXI are not supported.  Every character can run a different file, the default.js script will send characters to farm tiny crabs on the main beach.
 
+## Differences to the original runner
+
+### game_log
+log messages are send as the game event `game_log` with data `{message: <text>}` to reduce spam to the console
+
+### game.platform
+this value is usually `electron` for Steam, Mac clients, `web` for https://adventure.land. When running code in ALBot it is set to `albot`
+
 ## Contributing
 Feel free to make contributions, they are always welcome!
 

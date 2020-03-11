@@ -12,7 +12,7 @@ server = {
 }
 
 game = {
-    platform: parent.is_electron && "electron" || "web", // "electron" for Steam, Mac clients, "web" for https://adventure.land
+    platform: "albot", // "electron" for Steam, Mac clients, "web" for https://adventure.land
     graphics: !parent.no_graphics, // if game.graphics is false, don't draw stuff to the game in your Code
     html: !parent.no_html, // if game.html is false, this character is loaded in [CODE] mode
 };

@@ -267,7 +267,8 @@ function add_log(c, a) {
         });
     }
     game_logs.push([c,a]);
-    console.log(c);
+    call_code_function("trigger_event", "game_log", {message: c})
+
 }
 
 function add_holiday_log() {
