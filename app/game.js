@@ -203,14 +203,12 @@ Game.prototype.init = function () {
         game: this,
         close_merchant: close_merchant,
         open_merchant: open_merchant,
-        start_character_runner: function () {
-        },
+        start_character_runner: start_character_runner,
         stop_character_runner: function () {
         },
         character_code_eval: function () {
         },
-        get_active_characters: function () {
-        },
+        get_active_characters: get_active_characters,
         skill_timeout: skill_timeout,
         buy_with_gold: buy_with_gold,
         buy_with_shells: buy_with_shells,

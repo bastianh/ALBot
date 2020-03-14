@@ -3,6 +3,7 @@
 
 var G = parent.G; // Game Data - Use show_json(Object.keys(G)); and inspect individual data with show_json(G.skills) and alike
 var safeties = true; // Prevents common delay based issues that cause many requests to be sent to the server in a burst that triggers the server to disconnect the character
+var active_characters = {}; // list of active characters in albot
 
 server = {
     mode: parent.gameplay, // "normal", "hardcore", "test"
@@ -22,10 +23,6 @@ character.bot = parent.is_bot;
 
 function start_character(name, code_slot_or_name) {
     // Loads a character in [CODE] mode
-    //TODO implement
-    throw new Error("Not supported in ALBot. yet");
-    return;
-    //TODO implement
     parent.start_character_runner(name, code_slot_or_name)
 }
 
@@ -37,16 +34,18 @@ function stop_character(name) {
 }
 
 function command_character(name, code_snippet) {
-    // Commands the character in [CODE] mode
-    throw new Error("Not supported in ALBot. yet");
-    return;
     parent.character_code_eval(name, code_snippet)
 }
 
 function get_active_characters() {
     // States: "self", "starting","loading", "active", "code"
     // Example: {"Me":"self","Protector":"loading"}
-    return parent.get_active_characters()
+    var a = active_characters;
+    if (!character) {
+        return a
+    }
+    a[character.name] = "self";
+    return a
 }
 
 function change_server(region, name) // change_server("EU","I") or change_server("ASIA","PVP") or change_server("US","III")
@@ -399,12 +398,12 @@ function trade_buy(target, trade_slot) // target needs to be an actual player
 
 function upgrade(item_num, scroll_num, offering_num) //number of the item and scroll on the show_json(character.items) array - 0 to N-1
 {
-    return parent.upgrade(item_num, scroll_num, offering_num,"code");
+    return parent.upgrade(item_num, scroll_num, offering_num, "code");
 }
 
 function compound(item0, item1, item2, scroll_num, offering_num) // for example -> compound(0,1,2,6) -> 3 items in the first 3 slots, scroll at the 6th spot
 {
-    return parent.compound(item0, item1, item2, scroll_num, offering_num,"code");
+    return parent.compound(item0, item1, item2, scroll_num, offering_num, "code");
 }
 
 function craft(i0, i1, i2, i3, i4, i5, i6, i7, i8)
@@ -492,6 +491,7 @@ function find_npc(npc_id) {
     }
     return null;
 }
+
 function get_nearest_monster(args) {
     //args:
     // max_att - max attack
@@ -543,6 +543,7 @@ function get_nearest_hostile(args) // mainly as an example [08/02/17]
     }
     return target;
 }
+
 function use_hp_or_mp() {
     if (safeties && mssince(last_potion) < min(200, character.ping * 3)) return;
     var used = false;
@@ -655,6 +656,8 @@ function send_cm(to, data) {
 process.on("message", function (m) {
     if (m.type === "send_cm_failed") {
         parent.send_code_message(m.characterName, m.data);
+    } else if (m.type === "active_characters") {
+        active_characters = m.data;
     }
 })
 
@@ -1200,12 +1203,10 @@ function code_draw() {
 // Backwards compatibility routines / functions
 
 // Auto reload is default on now [28/02/19]
-function auto_reload(value)
-{
+function auto_reload(value) {
 }
 
-function handle_death()
-{
+function handle_death() {
     // When a character dies, character.rip is true, you can override handle_death and manually respawn
     // IDEA: A Resident PVP-Dweller, with an evasive Code + irregular respawning
     // respawn current has a 12 second cooldown, best wait 15 seconds before respawning [24/11/16]
@@ -1220,53 +1221,67 @@ function on_combined_damage() // When multiple characters stay in the same spot,
 
 function in_attack_range(target) // also works for priests/heal
 {
-    if(!target) return false;
-    if(parent.distance(character,target)<=character.range) return true;
+    if (!target) return false;
+    if (parent.distance(character, target) <= character.range) return true;
     return false;
 }
 
-function destroy_item(i){destroy(i)}
+function destroy_item(i) {
+    destroy(i)
+}
 
-character.on("stacked",function(){ on_combined_damage(); });
-character.on("death",function(){ handle_death(); });
-character.one("cm",function(data){ on_cm(data.name,data.message) });
+character.on("stacked", function () {
+    on_combined_damage();
+});
+character.on("death", function () {
+    handle_death();
+});
+character.one("cm", function (data) {
+    on_cm(data.name, data.message)
+});
 
 // [06/03/19]: doneify aimed to add a completion callback to every function
 // such as buy("shoes").done(function(success_flag,data){})
 // feedback was mixed, ES6 Promise's were suggested, which hibernated the efforts
 // currently shelving doneify, as current DOCS render functions directly, it won't work any more
 // likely going to start returning Promise's and re-visit every routine
-function doneify(fn,s_event,f_event)
-{
-    return function(a,b,c,d,e,f){
-        var rxd=randomStr(30);
-        parent.rxd=rxd;
-        fn(a,b,c,d,e,f);
-        return {done:function(callback){
-                game.once(s_event,function(event){
-                    if(event.rxd==rxd)
-                    {
-                        callback(true,event);
-                        this.delete=true; // remove the .on listener
-                        parent.rxd=null;
+function doneify(fn, s_event, f_event) {
+    return function (a, b, c, d, e, f) {
+        var rxd = randomStr(30);
+        parent.rxd = rxd;
+        fn(a, b, c, d, e, f);
+        return {
+            done: function (callback) {
+                game.once(s_event, function (event) {
+                    if (event.rxd == rxd) {
+                        callback(true, event);
+                        this.delete = true; // remove the .on listener
+                        parent.rxd = null;
                     }
                     // else game_log("rxd_mismatch");
                 });
-                game.once(f_event,function(event){
-                    if(event.rxd==rxd)
-                    {
-                        callback(false,event);
-                        this.delete=true; // remove the .on listener
-                        parent.rxd=null;
+                game.once(f_event, function (event) {
+                    if (event.rxd == rxd) {
+                        callback(false, event);
+                        this.delete = true; // remove the .on listener
+                        parent.rxd = null;
                     }
                     // else game_log("rxd_mismatch");
                 });
-            }};
+            }
+        };
     };
 }
+
 // buy=doneify(buy,"buy_success","buy_fail");
 
 
-character.on("stacked",function(){ on_combined_damage(); });
-character.on("death",function(){ handle_death(); });
-character.one("cm",function(data){ on_cm(data.name,data.message) });
+character.on("stacked", function () {
+    on_combined_damage();
+});
+character.on("death", function () {
+    handle_death();
+});
+character.one("cm", function (data) {
+    on_cm(data.name, data.message)
+});
