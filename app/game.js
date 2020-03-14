@@ -218,8 +218,7 @@ Game.prototype.init = function () {
         storage_set: storage_set,
         monster_attack: monster_attack,
         is_bot: true,
-
-
+        albot: true,
     };
     //non static variables
     Object.defineProperty(glob, "entities", {
