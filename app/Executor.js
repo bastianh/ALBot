@@ -36,6 +36,7 @@ var Executor = function (glob, file) {
         process.on('message', (m) => {
             if (m.type === "on_cm") {
                 parent.call_code_function("on_cm", m.from, m.data);
+                trigger_character_event("cm", { name:m.from, message:m.data })
             }
         });
         process.on('message', (m) => {
