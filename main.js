@@ -127,6 +127,20 @@ async function main() {
 
 var activeChildren = {};
 
+async function updateCharacters(httpWrapper) {
+    console.log("UPDATE_CHARACTERS")
+    let response = await httpWrapper.getServersAndCharacters();
+
+    for (var i in activeChildren) {
+        if (activeChildren.hasOwnProperty(i)) {
+            activeChildren[i].send({
+                type: "api_response",
+                data: response,
+            });
+        }
+    }
+}
+
 function startGame(args) {
     let childProcess = child_process.fork("./app/game", args, {
         stdio: [0, 1, 2, 'ipc'],

@@ -655,6 +655,8 @@ function send_cm(to, data) {
 process.on("message", function (m) {
     if (m.type === "send_cm_failed") {
         parent.send_code_message(m.characterName, m.data);
+    } else if (m.type === "api_response") {
+        parent.call_code_function("trigger_event", m.type, m.data)
     }
 })
 
