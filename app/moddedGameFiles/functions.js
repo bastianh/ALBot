@@ -1226,13 +1226,8 @@ function show_character_snippet(a) {
 }
 
 function get_active_characters() {
-    var a = {};
-    if (!character) {
-        return a
-    }
-    a[character.name] = "self";
-    //TODO implement method to receive active characters
-    return a
+    // functionality in runner_functions!
+    return {}
 }
 
 function character_code_eval(name, snippet) {
@@ -1313,6 +1308,11 @@ function start_character_runner(b, d) {
     if (gameplay == "test") {
         c += randomStr(10)
     }
+    process.send({
+        type: "start_character",
+        name: b,
+        data: d,
+    });
 }
 
 function start_runner(a, b) {

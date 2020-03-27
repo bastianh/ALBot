@@ -12,6 +12,8 @@ var uiGenerator = require("./app/uiGenerator");
 var login = userData.login;
 var bots = userData.bots;
 
+var inactiveBots = {};
+
 async function main() {
     var httpWrapper;
     if (userData.sessionData) {
@@ -98,9 +100,7 @@ async function main() {
     //Checks are done, starting bots.
     let botCount = 0;
     for (let i = 0; i < bots.length; i++) {
-        if (!bots[i].enabled)
-            continue;
-        botCount++;
+
         //TODO fix for no online server
         let ip = null;
         let port = null;
@@ -113,7 +113,12 @@ async function main() {
         }
         if (ip && port) {
             var args = [httpWrapper.sessionCookie, httpWrapper.userAuth, httpWrapper.userId, ip, port, bots[i].characterId, bots[i].runScript, userData.config.botKey];
-            startGame(args);
+            if (bots[i].enabled) {
+                botCount++;
+                startGame(args);
+            } else {
+                inactiveBots[bots[i].characterName] = args;
+            }
         } else {
             console.warn("Couldn't find server: '" + bots[i].server + "'.");
         }
@@ -126,6 +131,18 @@ async function main() {
 }
 
 var activeChildren = {};
+var codeStatus = {};
+
+function updateChildrenData() {
+    for (var i in activeChildren) {
+        console.log("UPDATE", i, codeStatus[i])
+        // wo dont send active clients to code started bots to imitate web client
+        if (!inactiveBots[i]) activeChildren[i].send({
+            type: "active_characters",
+            data: codeStatus
+        })
+    }
+}
 
 async function updateCharacters(httpWrapper) {
     console.log("UPDATE_CHARACTERS")
@@ -166,16 +183,20 @@ function startGame(args) {
             for (var i in activeChildren) {
                 if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
                     activeChildren[i] = null;
+                    codeStatus[i] = "loading"
                 }
             }
             BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
             startGame(args);
+            updateChildrenData();
         } else if (m.type === "bwiUpdate") {
             data = m.data;
         } else if (m.type === "bwiPush") {
             botInterface.pushData(m.name, m.data);
         } else if (m.type === "startupClient") {
             activeChildren[m.characterName] = childProcess;
+            codeStatus[m.characterName] = "code";
+            updateChildrenData();
         } else if (m.type === "send_cm") {
             if (activeChildren[m.characterName]) {
                 activeChildren[m.characterName].send({
@@ -189,6 +210,15 @@ function startGame(args) {
                     characterName: m.characterName,
                     data: m.data,
                 });
+            }
+        } else if (m.type === "start_character") {
+            let bot = inactiveBots[m.name];
+            if (bot && !activeChildren[m.name]) {
+                codeStatus[m.name] = "loading";
+                if (m.data && inactiveBots[m.name]) inactiveBots[m.name][6] = m.data + ".js";
+                startGame(bot);
+                updateChildrenData()
+                console.log("started", m.name)
             }
         }
     });

@@ -36,6 +36,7 @@ var Executor = function (glob, file) {
         process.on('message', (m) => {
             if (m.type === "on_cm") {
                 parent.call_code_function("on_cm", m.from, m.data);
+                trigger_character_event("cm", { name:m.from, message:m.data })
             }
         });
         process.on('message', (m) => {
@@ -59,8 +60,8 @@ var Executor = function (glob, file) {
             on_destroy: {get: () => on_destroy},
             on_draw: {get: () => on_draw},
             on_game_event: {get: () => on_game_event},
-            trigger_event:{get:()=>trigger_event},
-            trigger_character_event:{get:()=>trigger_character_event}
+            trigger_event: {get:()=>trigger_event},
+            trigger_character_event: {get:()=>trigger_character_event}
         });
     }
 };
