@@ -123,6 +123,9 @@ async function main() {
             console.warn("Couldn't find server: '" + bots[i].server + "'.");
         }
     }
+
+    setInterval(updateCharacters, 15000, httpWrapper);
+
     if (bots.length === 0) {
         console.warn("Couldn't find any bots to start you can set the fetch flag the pull all characters from the server.");
     } else if (botCount === 0) {
