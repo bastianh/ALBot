@@ -3299,11 +3299,16 @@ function clear_ui2() {
 }
 
 function storage_get(a) {
-    return localStorage.getItem(a)
+    try {
+        return JSON.parse(localStorage.getItem(a))
+    } catch(e) {
+        console.error("could not load", e)
+        return undefined
+    }
 }
 
 function storage_set(a, b) {
-    return localStorage.setItem(a, b)
+    return localStorage.setItem(a, JSON.stringify(b))
 }
 
 var manifest = null;
