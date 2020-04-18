@@ -190,6 +190,7 @@ Game.prototype.init = function () {
         trade_buy: trade_buy,
         upgrade: upgrade,
         compound: compound,
+        auto_craft: auto_craft,
         exchange: exchange,
         say: say,
         private_say: private_say,
