@@ -124,7 +124,7 @@ async function main() {
         }
     }
 
-    setInterval(updateCharacters, 15000, httpWrapper);
+    setInterval(updateCharacters, 20000, httpWrapper);
 
     if (bots.length === 0) {
         console.warn("Couldn't find any bots to start you can set the fetch flag the pull all characters from the server.");
@@ -148,15 +148,15 @@ function updateChildrenData() {
 }
 
 async function updateCharacters(httpWrapper) {
-    console.log("UPDATE_CHARACTERS")
     let response = await httpWrapper.getServersAndCharacters();
 
     for (var i in activeChildren) {
         if (activeChildren.hasOwnProperty(i)) {
-            activeChildren[i].send({
-                type: "api_response",
-                data: response,
-            });
+            try {
+                activeChildren[i].send({type: "api_response", data: response});
+            } catch (e) {
+
+            }
         }
     }
 }
