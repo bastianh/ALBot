@@ -1232,16 +1232,6 @@ function destroy_item(i) {
     destroy(i)
 }
 
-character.on("stacked", function () {
-    on_combined_damage();
-});
-character.on("death", function () {
-    handle_death();
-});
-character.one("cm", function (data) {
-    on_cm(data.name, data.message)
-});
-
 // [06/03/19]: doneify aimed to add a completion callback to every function
 // such as buy("shoes").done(function(success_flag,data){})
 // feedback was mixed, ES6 Promise's were suggested, which hibernated the efforts
