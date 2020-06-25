@@ -2,22 +2,11 @@ process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
 });
-
+var fs = require("fs");
 var child_process = require("child_process");
 var HttpWrapper = require("./app/httpWrapper");
 var BotWebInterface = require("bot-web-interface");
-var fs = require("fs");
-try {
-    var userData = require("./conf/userData.json");
-} catch {
-    // destination.txt will be created or overwritten by default.
-    fs.copyFile('./userData.example.json', './conf/userData.json', (err) => {
-        if (err) throw err;
-        console.log("Example userdata copied to conf folder.");
-        process.exit()
-    });
-    return
-}
+var userData = require("./conf/userData.json");
 var uiGenerator = require("./app/uiGenerator");
 var login = userData.login;
 var bots = userData.bots;

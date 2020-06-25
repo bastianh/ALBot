@@ -1,7 +1,18 @@
 /**
  * Created by nexus on 15/05/17.
  */
-const config = require("../userData").config;
+var fs = require("fs");
+try {
+    var config = require("../conf/userData").config;
+} catch {
+    fs.copyFile('../userData.example.json', '../conf/userData.json', (err) => {
+        if (err) throw err;
+        console.log("Example userdata copied to conf folder.");
+        process.exit()
+    });
+    return
+}
+
 const request = require("request-promise-native");
 const vm = require('vm');
 /**
@@ -152,7 +163,7 @@ HttpWrapper.prototype.checkLogin = async function () {
         console.log("check Login:");
         var html = await request.post({
             url: "https://adventure.land/api/servers_and_characters",
-            headers: {cookie: "auth=" + self.sessionCookie,"user-agent": config.browserUserAgent,},
+            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": config.browserUserAgent,},
             formData: {method: "servers_and_characters", arguments: "{}"}
         });
         let data = JSON.parse(html)[0];
