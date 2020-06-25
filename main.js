@@ -7,7 +7,17 @@ var child_process = require("child_process");
 var HttpWrapper = require("./app/httpWrapper");
 var BotWebInterface = require("bot-web-interface");
 var fs = require("fs");
-var userData = require("./userData.json");
+try {
+    var userData = require("./conf/userData.json");
+} catch {
+    // destination.txt will be created or overwritten by default.
+    fs.copyFile('./userData.example.json', './conf/userData.json', (err) => {
+        if (err) throw err;
+        console.log("Example userdata copied to conf folder.");
+        process.exit()
+    });
+    return
+}
 var uiGenerator = require("./app/uiGenerator");
 var login = userData.login;
 var bots = userData.bots;
@@ -22,7 +32,7 @@ async function main() {
         if (await httpWrapper.checkLogin()) {
         } else if (await httpWrapper.login(login.email, login.password)) {
             userData.sessionData.sessionCookie = httpWrapper.sessionCookie;
-            fs.writeFileSync("./userData.json", JSON.stringify(userData, null, 4));
+            fs.writeFileSync("./conf/userData.json", JSON.stringify(userData, null, 4));
         } else {
             throw new Error("Login failed");
         }
@@ -32,7 +42,7 @@ async function main() {
     }
 
     var characters = await httpWrapper.getCharacters();
-    var userAuth = await httpWrapper.getUserAuth();
+    //var userAuth = await httpWrapper.ls();
 
     if (userData.config.fetch) {
         console.log("Populating config file with data.");
@@ -47,7 +57,7 @@ async function main() {
             }
         }
         userData.config.fetch = false;
-        fs.writeFileSync("./userData.json", JSON.stringify(userData, null, 4));
+        fs.writeFileSync("./conf/userData.json", JSON.stringify(userData, null, 4));
         process.exit();
     }
 

@@ -1,7 +1,7 @@
 /**
  * Created by nexus on 03/04/17.
  */
-global.fetch = require("node-fetch");
+global.XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 global.io = require("socket.io-client");
 process.on('uncaughtException', function (exception) {
     console.log(exception);
