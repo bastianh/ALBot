@@ -10,7 +10,6 @@ process.on('uncaughtException', function (exception) {
 });
 var LocalStorage = require('node-localstorage').LocalStorage;
 var HttpWrapper = require("./httpWrapper");
-const uiGenerator = require("./uiGenerator");
 const pngUtil = require("./pngUtil");
 const PNG = require('pngjs').PNG;
 const fs = require("fs");
@@ -325,17 +324,7 @@ Game.prototype.init = function () {
         });
 
         setTimeout(function () {
-            if (uiGenerator.enableMiniMap)
-                setInterval(function () {
-                    let buffer = uiGenerator.generateMiniMap(hitLog, entities);
-                    hitLog = [];
-                    process.send({
-                        type: "bwiPush",
-                        name: "minimap",
-                        data: "data:image/png;base64," + buffer.toString("base64"),
-                    });
-                }, uiGenerator.updateTiming);
-            if (uiGenerator.enableBotWebInterface)
+            if (true)
                 setInterval(function () {
                     var targetName = "nothing";
                     if (character.target && entities[character.target]) {

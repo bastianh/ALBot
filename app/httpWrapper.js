@@ -46,7 +46,7 @@ HttpWrapper.prototype.login = async function (email, password) {
                     headers: {
                         "x-requested-with": "XMLHttpRequest",
                         "Accept": "application/json, text/javascript, */*; q=0.01",
-                        "user-agent": config.browserUserAgent,
+                        "user-agent": "UserAgent",
                     }
                 }, function (err, response, html) {
                     if (err) {
@@ -99,7 +99,7 @@ HttpWrapper.prototype.getCharacters = async function () {
     return new Promise(async function (resolve) {
         var html = await request.post({
             url: "https://adventure.land/api/servers_and_characters",
-            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": config.browserUserAgent,},
+            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": "UserAgent",},
             formData: {method: "servers_and_characters", arguments: "{}"}
         });
         let data = JSON.parse(html)[0];
@@ -112,7 +112,7 @@ HttpWrapper.prototype.getServersAndCharacters = async function () {
     return new Promise(async function (resolve) {
         var html = await request.post({
             url: "https://adventure.land/api/servers_and_characters",
-            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": config.browserUserAgent,},
+            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": "UserAgent",},
             formData: {method: "servers_and_characters", arguments: "{}"}
         });
         let data = JSON.parse(html)[0];
@@ -128,7 +128,7 @@ HttpWrapper.prototype.getServerList = async function () {
             url: "https://adventure.land/api/get_servers",
             method: "POST",
             headers: {
-                "user-agent": config.browserUserAgent,
+                "user-agent": "UserAgent",
                 "x-requested-with": "XMLHttpRequest",
                 cookie: "auth=" + self.sessionCookie
             },
@@ -152,7 +152,7 @@ HttpWrapper.prototype.checkLogin = async function () {
         console.log("check Login:");
         var html = await request.post({
             url: "https://adventure.land/api/servers_and_characters",
-            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": config.browserUserAgent,},
+            headers: {cookie: "auth=" + self.sessionCookie, "user-agent": "UserAgent",},
             formData: {method: "servers_and_characters", arguments: "{}"}
         });
         let data = JSON.parse(html)[0];
@@ -176,7 +176,7 @@ HttpWrapper.prototype.getGameData = async function () {
                 headers: {
                     "x-requested-with": "XMLHttpRequest",
                     "Accept": "application/json, text/javascript, */*; q=0.01",
-                    "user-agent": config.browserUserAgent,
+                    "user-agent": "UserAgent",
                     "cookie": "auth=" + self.sessionCookie,
                 }
             });
@@ -198,7 +198,7 @@ HttpWrapper.prototype.getGameVersion = async function () {
             headers: {
                 "x-requested-with": "XMLHttpRequest",
                 "Accept": "application/json, text/javascript, */*; q=0.01",
-                "user-agent": config.browserUserAgent,
+                "user-agent": "UserAgent",
                 "cookie": "auth=" + self.sessionCookie,
             }
         });
@@ -215,7 +215,7 @@ HttpWrapper.prototype.getUserAuth = async function () {
             headers: {
                 "x-requested-with": "XMLHttpRequest",
                 "Accept": "application/json, text/javascript, */*; q=0.01",
-                "user-agent": config.browserUserAgent,
+                "user-agent": "UserAgent",
                 "cookie": "auth=" + self.sessionCookie,
             }
         });

@@ -905,85 +905,111 @@ var smart = {
     flags: {}
 };
 
-function smart_move(destination, on_done) // despite the name, smart_move isn't very smart or efficient, it's up to the players to implement a better movement method [05/02/17]
+function smart_move(destination,on_done)
 {
-    smart.map = "";
-    if (is_string(destination)) destination = {to: destination};
-    if (is_number(destination)) destination = {x: destination, y: on_done}, on_done = null;
-    if ("x" in destination) {
-        smart.map = destination.map || character.map;
-        smart.x = destination.x;
-        smart.y = destination.y;
-    } else if ("to" in destination || "map" in destination) {
-        if (destination.to === "town") destination.to = "main";
-        if (G.monsters[destination.to]) {
-            var locations = [], theone;
-            for (var name in G.maps)
-                (G.maps[name].monsters || []).forEach(function (pack) {
-                    if (pack.type !== destination.to || G.maps[name].ignore || G.maps[name].instance) return;
-                    if (pack.boundaries) // boundaries: for phoenix, mvampire
+    // despite the name, smart_move isn't very smart or efficient, it's up to the players to implement a better movement method [05/02/17]
+    // on_done function is an old callback function for compatibility, smart_move also returns a Promise [25/03/20]
+    if(smart.moving) smart.on_done(false,"interrupted");
+    smart.map="";
+    if(is_string(destination)) destination={to:destination};
+    if(is_number(destination)) destination={x:destination,y:on_done},on_done=null;
+    if("x" in destination)
+    {
+        smart.map=destination.map||character.map;
+        smart.x=destination.x;
+        smart.y=destination.y;
+    }
+    else if("to" in destination || "map" in destination)
+    {
+        if(destination.to=="town") destination.to="main";
+        if(G.monsters[destination.to])
+        {
+            var locations=[],theone;
+            for(var name in G.maps)
+                (G.maps[name].monsters||[]).forEach(function(pack){
+                    if(pack.type!=destination.to || G.maps[name].ignore || G.maps[name].instance) return;
+                    if(pack.boundaries) // boundaries: for phoenix, mvampire
                     {
-                        pack.last = pack.last || 0;
-                        var boundary = pack.boundaries[pack.last % pack.boundaries.length];
+                        pack.last=pack.last||0;
+                        var boundary=pack.boundaries[pack.last%pack.boundaries.length];
                         pack.last++;
-                        locations.push([boundary[0], (boundary[1] + boundary[3]) / 2, (boundary[2] + boundary[4]) / 2]);
-                    } else if (pack.boundary) {
-                        var boundary = pack.boundary;
-                        locations.push([name, (boundary[0] + boundary[2]) / 2, (boundary[1] + boundary[3]) / 2]);
+                        locations.push([boundary[0],(boundary[1]+boundary[3])/2,(boundary[2]+boundary[4])/2]);
+                    }
+                    else if(pack.boundary)
+                    {
+                        var boundary=pack.boundary;
+                        locations.push([name,(boundary[0]+boundary[2])/2,(boundary[1]+boundary[3])/2]);
                     }
                 });
-            if (locations.length) // This way, when you smart_move("snake") repeatedly - you can keep visiting different maps with snakes
+            if(locations.length) // This way, when you smart_move("snake") repeatedly - you can keep visiting different maps with snakes
             {
-                theone = random_one(locations);
-                smart.map = theone[0];
-                smart.x = theone[1];
-                smart.y = theone[2];
+                theone=random_one(locations);
+                smart.map=theone[0]; smart.x=theone[1]; smart.y=theone[2];
             }
-        } else if (G.maps[destination.to || destination.map]) {
-            smart.map = destination.to || destination.map;
-            smart.x = G.maps[smart.map].spawns[0][0];
-            smart.y = G.maps[smart.map].spawns[0][1];
-        } else if (destination.to === "upgrade" || destination.to === "compound") smart.map = "main", smart.x = -204, smart.y = -129;
-        else if (destination.to === "exchange") smart.map = "main", smart.x = -26, smart.y = -432;
-        else if (destination.to === "potions" && character.map === "halloween") smart.map = "halloween", smart.x = 149, smart.y = -182;
-        else if (destination.to === "potions" && in_arr(character.map, ["winterland", "winter_inn", "winter_cave"])) smart.map = "winter_inn", smart.x = -84, smart.y = -173;
-        else if (destination.to === "potions") smart.map = "main", smart.x = 56, smart.y = -122;
-        else if (destination.to === "scrolls") smart.map = "main", smart.x = -465, smart.y = -71;
-        else if (find_npc(destination.to)) {
-            var l = find_npc(destination.to);
-            smart.map = l.map, smart.x = l.x, smart.y = l.y + 15;
+        }
+        else if(G.maps[destination.to||destination.map])
+        {
+            smart.map=destination.to||destination.map;
+            smart.x=G.maps[smart.map].spawns[0][0];
+            smart.y=G.maps[smart.map].spawns[0][1];
+        }
+        else if(destination.to=="upgrade" || destination.to=="compound") smart.map="main",smart.x=-204,smart.y=-129;
+        else if(destination.to=="exchange") smart.map="main",smart.x=-26,smart.y=-432;
+        else if(destination.to=="potions" && character.map=="halloween") smart.map="halloween",smart.x=149,smart.y=-182;
+        else if(destination.to=="potions" && in_arr(character.map,["winterland","winter_inn","winter_cave"])) smart.map="winter_inn",smart.x=-84,smart.y=-173;
+        else if(destination.to=="potions") smart.map="main",smart.x=56,smart.y=-122;
+        else if(destination.to=="scrolls") smart.map="main",smart.x=-465,smart.y=-71;
+        else if(find_npc(destination.to))
+        {
+            var l=find_npc(destination.to);
+            smart.map=l.map,smart.x=l.x,smart.y=l.y+15;
         }
     }
-    if (!smart.map) {
-        game_log("Unrecognized", "#CF5B5B");
-        return;
+    if(!smart.map)
+    {
+        game_log("Unrecognized location","#CF5B5B");
+        return rejecting_promise({reason:"invalid"});
     }
-    smart.moving = true;
-    smart.plot = [];
-    smart.flags = {};
-    smart.searching = smart.found = false;
-    if (destination.return) {
-        var cx = character.real_x, cy = character.real_y, cmap = character.map;
-        smart.on_done = function () {
-            if (on_done) on_done();
-            smart_move({map: cmap, x: cx, y: cy});
+    smart.moving=true;
+    smart.plot=[]; smart.flags={}; smart.searching=smart.found=false;
+    if(destination.return)
+    {
+        var cx=character.real_x,cy=character.real_y,cmap=character.map;
+        smart.on_done=function(done,reason){
+            if(on_done) on_done(done);
+            smart_move({map:cmap,x:cx,y:cy});
+            if(done) resolve_deferreds("smart_move",{success:true});
+            else reject_deferreds("smart_move",{reason:reason});
         }
-    } else smart.on_done = on_done || function () {
+    }
+    else smart.on_done=function(done,reason){
+        if(on_done) on_done(done);
+        if(done) resolve_deferreds("smart_move",{success:true});
+        else reject_deferreds("smart_move",{reason:reason});
     };
-    console.log(smart.map + " " + smart.x + " " + smart.y);
+    console.log("smart_move: "+smart.map+" "+smart.x+" "+smart.y);
+    return push_deferred("smart_move");
 }
 
-function stop(action) {
-    if (!action || action == "move") {
-        if (smart.moving) smart.on_done(false);
-        smart.moving = false;
-        move(character.real_x, character.real_y);
-    } else if (action == "invis") {
-        parent.socket.emit("stop", {action: "invis"});
-    } else if (action == "teleport" || action == "town") {
-        parent.socket.emit("stop", {action: "town"});
-    } else if (action == "revival") {
-        parent.socket.emit("stop", {action: "revival"});
+function stop(action,second)
+{
+    if(!action || action=="move" || action=="smart")
+    {
+        if(smart.moving) smart.on_done(second||false,"interrupted");
+        smart.moving=false;
+        if(action!="smart") move(character.real_x,character.real_y);
+    }
+    else if(action=="invis")
+    {
+        parent.socket.emit("stop",{action:"invis"});
+    }
+    else if(action=="teleport" || action=="town")
+    {
+        parent.socket.emit("stop",{action:"town"});
+    }
+    else if(action=="revival")
+    {
+        parent.socket.emit("stop",{action:"revival"});
     }
 }
 

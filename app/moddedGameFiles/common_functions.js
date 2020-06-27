@@ -269,6 +269,19 @@ function push_deferreds(a, d) {
     return c
 }
 
+function resolve_deferreds(name,data)
+{
+    while(deferreds[name] && deferreds[name].length) resolve_deferred(name,data);
+    delete deferreds[name];
+}
+
+function reject_deferreds(name,data)
+{
+    while(deferreds[name] && deferreds[name].length) reject_deferred(name,data);
+    delete deferreds[name];
+}
+
+
 function resolve_deferred(a, b) {
     if (a == "attack" && (!deferreds.attack || !deferreds.attack.length) && deferreds.heal && deferreds.heal.length) {
         a = "heal"

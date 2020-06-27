@@ -4,7 +4,6 @@ process.on('uncaughtException', function (exception) {
 });
 var child_process = require("child_process");
 
-var BotWebInterface = require("bot-web-interface");
 var HttpWrapper = require("./app/httpWrapper");
 const request = require("request-promise-native");
 const fs = require('fs');
@@ -39,6 +38,7 @@ async function main() {
     socket.on('connect_error', (d) => {
         console.log("socket.io error", socket, d);
     });
+
     socket.on('connect_timeout', (d) => {
         console.log("socket.io timeout", d);
     });
@@ -71,21 +71,6 @@ async function main() {
     socket.on('reload', (data) => {
         socket.emit("info", {bots})
     })
-
-    /*
-    if (userData.config.botWebInterface.start) {
-        BotWebInterface.startOnPort(userData.config.botWebInterface.port);
-        var password;
-        if (userData.config.botWebInterface.password === "")
-            password = null;
-        else
-            password = userData.config.botWebInterface.password;
-        BotWebInterface.setPassword(password);
-        BotWebInterface.SocketServer.getPublisher()
-            .setDefaultStructure(uiGenerator.getDefaultStructure());
-    }
-     */
-
 }
 
 var activeChildren = {};
@@ -119,23 +104,14 @@ function startGame(args) {
     let childProcess = child_process.fork("./app/game", args, {
         stdio: [0, 1, 2, 'ipc'],
         execArgv: [
+            // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
             //'--inspect-brk',
             //"--max_old_space_size=4096",
         ]
     });
-    var data = {};
-    var botInterface = BotWebInterface.SocketServer.getPublisher().createInterface();
-
-    /**
-     *
-     * @type {Array<BotUI>}
-     */
-    botInterface.setDataSource(() => {
-        return data;
-    });
 
     childProcess.on('message', (m) => {
-        console.log("MESSAGE INFO", m);
+        // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "disconnected") {
             childProcess.kill();
             for (var i in activeChildren) {
@@ -144,13 +120,13 @@ function startGame(args) {
                     codeStatus[i] = "loading"
                 }
             }
-            BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
+            // BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
             startGame(args);
             updateChildrenData();
         } else if (m.type === "bwiUpdate") {
-            data = m.data;
+            // data = m.data;
         } else if (m.type === "bwiPush") {
-            botInterface.pushData(m.name, m.data);
+            // botInterface.pushData(m.name, m.data);
         } else if (m.type === "startupClient") {
             activeChildren[m.characterName] = childProcess;
             codeStatus[m.characterName] = "code";
