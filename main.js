@@ -26,9 +26,9 @@ async function main() {
         process.exit()
     }
 
-    const code = await request.get(`https://${host}/api/code/cli.js?token=${token}`)
+    const url = `https://${host}/api/code/cli.js?token=${token}`
+    const code = await request.get(url)
     fs.writeFileSync("CODE/default.js", code)
-    process.exit()
 
     const socket = io(`https://${socket_host}/albot?token=${token}`,
         {transport: ['websocket']})
