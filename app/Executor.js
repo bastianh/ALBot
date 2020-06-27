@@ -45,7 +45,7 @@ var Executor = function (glob, file) {
             }
         });
 
-        (1,eval)(fs.readFileSync('conf/' + file) + '');
+        (1,eval)(fs.readFileSync('CODE/' + file) + '');
 
         // This exports scoped functions to the game object,
         // sadly this is the way to go because we don't have a window object.

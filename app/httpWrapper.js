@@ -1,17 +1,6 @@
 /**
  * Created by nexus on 15/05/17.
  */
-var fs = require("fs");
-try {
-    var config = require("../conf/userData").config;
-} catch {
-    fs.copyFile('../userData.example.json', '../conf/userData.json', (err) => {
-        if (err) throw err;
-        console.log("Example userdata copied to conf folder.");
-        process.exit()
-    });
-    return
-}
 
 const request = require("request-promise-native");
 const vm = require('vm');

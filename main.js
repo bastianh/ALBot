@@ -2,88 +2,77 @@ process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
 });
-var fs = require("fs");
 var child_process = require("child_process");
-var HttpWrapper = require("./app/httpWrapper");
-var BotWebInterface = require("bot-web-interface");
-var userData = require("./conf/userData.json");
-var uiGenerator = require("./app/uiGenerator");
-var login = userData.login;
-var bots = userData.bots;
 
+var BotWebInterface = require("bot-web-interface");
+var HttpWrapper = require("./app/httpWrapper");
+const request = require("request-promise-native");
+const fs = require('fs');
+
+var bots = {}
 var inactiveBots = {};
+var httpWrapper = undefined;
+
+const io = require('socket.io-client');
+
 
 async function main() {
-    var httpWrapper;
-    if (userData.sessionData) {
-        if (userData.sessionData !== "")
-            httpWrapper = new HttpWrapper(userData.sessionData.sessionCookie);
-        if (await httpWrapper.checkLogin()) {
-        } else if (await httpWrapper.login(login.email, login.password)) {
-            userData.sessionData.sessionCookie = httpWrapper.sessionCookie;
-            fs.writeFileSync("./conf/userData.json", JSON.stringify(userData, null, 4));
-        } else {
-            throw new Error("Login failed");
+    const token = process.env.TOKEN;
+    const host = process.env.HOST;
+    const socket_host = process.env.SOCKET_HOST || host;
+
+    if (!token || !host) {
+        console.warn("missing host or token")
+        process.exit()
+    }
+
+    const code = await request.get(`https://${host}/api/code/cli.js?token=${token}`)
+    fs.writeFileSync("CODE/default.js", code)
+    process.exit()
+
+    const socket = io(`https://${socket_host}/albot?token=${token}`,
+        {transport: ['websocket']})
+    socket.on('connect', (d) => {
+        console.log("socket.io connected", socket_host);
+    });
+
+    socket.on('connect_error', (d) => {
+        console.log("socket.io error", socket, d);
+    });
+    socket.on('connect_timeout', (d) => {
+        console.log("socket.io timeout", d);
+    });
+
+    socket.on('start_character', (arg1) => {
+        if (bots[arg1.char_name]) return;
+        if (!httpWrapper) {
+            httpWrapper = new HttpWrapper(arg1.auth, arg1.auth.split("-")[1], arg1.auth.split("-")[0]);
+            updateCharacters(httpWrapper)
+            setInterval(updateCharacters, 20000, httpWrapper);
         }
-    } else {
-        httpWrapper = new HttpWrapper();
-        await httpWrapper.login(userData.login.email, userData.login.password);
-    }
+        const args = [arg1.auth, arg1.auth.split("-")[1], arg1.auth.split("-")[0], arg1.ip, arg1.port, arg1.char_id, "default.js", false];
+        startGame(args)
+        bots[arg1.char_name] = {enabled: true, name: arg1.char_name,}
+        console.log(bots);
+        socket.emit("info", {bots})
+    });
 
-    var characters = await httpWrapper.getCharacters();
-    //var userAuth = await httpWrapper.ls();
+    socket.on('stop_character', (arg1) => {
+        if (!bots[arg1.char_name]) return;
+        if (!activeChildren[arg1.char_name]) return;
+        activeChildren[arg1.char_name].kill();
 
-    if (userData.config.fetch) {
-        console.log("Populating config file with data.");
-        userData.bots = [];
-        for (let i = 0; i < characters.length; i++) {
-            userData.bots[i] = {
-                characterName: characters[i].name,
-                characterId: characters[i].id,
-                runScript: "default.js",
-                server: "US I",
-                enabled: false,
-            }
-        }
-        userData.config.fetch = false;
-        fs.writeFileSync("./conf/userData.json", JSON.stringify(userData, null, 4));
-        process.exit();
-    }
+        delete activeChildren[arg1.char_name];
+        delete bots[arg1.char_name]
+        console.log(bots);
+        socket.emit("info", {bots})
+    });
 
-    //Checking for mistakes in userData.json
-    if (!bots) {
-        console.error("Missing field \"bots\" in userData.json");
-    }
+    socket.on('reload', (data) => {
+        socket.emit("info", {bots})
+    })
 
-    for (let i = 0; i < bots.length; i++) {
-        if (!(bots[i] && bots[i].characterId && bots[i].runScript && bots[i].server && typeof bots[i].enabled === "boolean"))
-            throw new Error("One or more necessary fields are missing from userData.json \n The following fields need to be present for a working executor:\n characterId runScript\n server\n enabled\n To fix this automatically simply set fetch: true in userdata.json");
-    }
-
-    //Reverse lookup name to characterId, names can't be used for starting a bot.
-    for (let i = 0; i < bots.length; i++) {
-        if (!bots[i].characterId) {
-            for (let j = 0; j < characters.length; j++) {
-                if (bots[i].characterName === characters[j].name) {
-                    bots[i].characterId = characters[j].id;
-                }
-            }
-        }
-    }
-
-    //Check that ids are unique, we don't want to start a bot twice.
-    for (let i = 0; i < bots.length; i++) {
-        if (bots[i])
-            for (let j = i + 1; j < bots.length; j++) {
-                if (bots[j])
-                    if (bots[i].characterId === bots[j].characterId) {
-                        console.error("Duplicate characterId " + bots[i].characterId + " ignoring second declaration.");
-                        bots[j] = null;
-                    }
-            }
-    }
-
-    let serverList = await httpWrapper.getServerList();
+    /*
     if (userData.config.botWebInterface.start) {
         BotWebInterface.startOnPort(userData.config.botWebInterface.port);
         var password;
@@ -95,41 +84,8 @@ async function main() {
         BotWebInterface.SocketServer.getPublisher()
             .setDefaultStructure(uiGenerator.getDefaultStructure());
     }
+     */
 
-    //Checks are done, starting bots.
-    let botCount = 0;
-    for (let i = 0; i < bots.length; i++) {
-
-        //TODO fix for no online server
-        let ip = null;
-        let port = null;
-        for (let j = 0; j < serverList.length; j++) {
-            let server = serverList[j];
-            if (bots[i].server === server.region + " " + server.name) {
-                ip = server.ip;
-                port = server.port;
-            }
-        }
-        if (ip && port) {
-            var args = [httpWrapper.sessionCookie, httpWrapper.userAuth, httpWrapper.userId, ip, port, bots[i].characterId, bots[i].runScript, userData.config.botKey];
-            if (bots[i].enabled) {
-                botCount++;
-                startGame(args);
-            } else {
-                inactiveBots[bots[i].characterName] = args;
-            }
-        } else {
-            console.warn("Couldn't find server: '" + bots[i].server + "'.");
-        }
-    }
-
-    setInterval(updateCharacters, 20000, httpWrapper);
-
-    if (bots.length === 0) {
-        console.warn("Couldn't find any bots to start you can set the fetch flag the pull all characters from the server.");
-    } else if (botCount === 0) {
-        console.warn("Couldn't find any bots to start, make sure the enable flag is set to true");
-    }
 }
 
 var activeChildren = {};
@@ -137,7 +93,6 @@ var codeStatus = {};
 
 function updateChildrenData() {
     for (var i in activeChildren) {
-        console.log("UPDATE", i, codeStatus[i])
         // wo dont send active clients to code started bots to imitate web client
         if (!inactiveBots[i]) activeChildren[i].send({
             type: "active_characters",
@@ -147,8 +102,8 @@ function updateChildrenData() {
 }
 
 async function updateCharacters(httpWrapper) {
+    if (!httpWrapper) return;
     let response = await httpWrapper.getServersAndCharacters();
-
     for (var i in activeChildren) {
         if (activeChildren.hasOwnProperty(i)) {
             try {
@@ -180,6 +135,7 @@ function startGame(args) {
     });
 
     childProcess.on('message', (m) => {
+        console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "disconnected") {
             childProcess.kill();
             for (var i in activeChildren) {
@@ -199,6 +155,7 @@ function startGame(args) {
             activeChildren[m.characterName] = childProcess;
             codeStatus[m.characterName] = "code";
             updateChildrenData();
+            //socket.emit("info", {bots})
         } else if (m.type === "send_cm") {
             if (activeChildren[m.characterName]) {
                 activeChildren[m.characterName].send({
@@ -226,9 +183,4 @@ function startGame(args) {
     });
 }
 
-main();
-
-
-
-
-
+main()
