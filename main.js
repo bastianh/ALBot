@@ -135,7 +135,7 @@ function startGame(charName, args) {
     });
 
     childProcess.on('message', (m) => {
-        console.log("MESSAGE INFO", m);
+        // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "disconnected") {
             childProcess.kill();
             for (var i in activeChildren) {
