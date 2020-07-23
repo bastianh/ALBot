@@ -39,7 +39,7 @@ async function main() {
             process.exit();
         }
     } catch (e) {
-        console.warn(e.response.status, e.response.statusText, e.response.data)
+        console.warn(e)
         process.exit()
     }
 
