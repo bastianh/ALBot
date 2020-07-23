@@ -1,4 +1,5 @@
-function render_interaction(){}
+function render_interaction() {
+}
 
 
 //

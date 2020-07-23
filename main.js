@@ -5,7 +5,8 @@ process.on('uncaughtException', function (exception) {
 var child_process = require("child_process");
 
 var HttpWrapper = require("./app/httpWrapper");
-const request = require("request-promise-native");
+const axios = require('axios');
+const FormData = require('form-data');
 const fs = require('fs');
 
 var bots = {}
@@ -14,6 +15,9 @@ var httpWrapper = undefined;
 var activeChildren = {};
 var codeStatus = {};
 var config = {};
+var auth = "";
+var servers = undefined;
+socket = undefined
 
 const io = require('socket.io-client');
 
@@ -26,18 +30,28 @@ async function main() {
         console.warn("missing host or token")
         process.exit()
     }
+    try {
+        const configCall = await axios.get(`${host}/api/info/albot`, {headers: {'Authorization': token}})
+        fs.writeFileSync("CODE/default.js", configCall.data.code)
+        auth = configCall.data.auth;
+        if (!auth) {
+            console.warn("got no auth");
+            process.exit();
+        }
+    } catch (e) {
+        console.warn(e.response.status, e.response.statusText, e.response.data)
+        process.exit()
+    }
 
-    const url = `https://${host}/api/code/cli.js?token=${token}`
-    console.log(`fetching script ${url}`)
-    const code = await request.get(url)
-    fs.writeFileSync("CODE/default.js", code)
+    const socket_url = `${socket_host}/albot?token=${token}`
 
-    const socket_url = `https://${socket_host}/albot?token=${token}`
     console.log("connecting socket:" + socket_url)
-    const socket = io(socket_url,
-        {transport: ['websocket']})
+
+    socket = io(socket_url, {transport: ['websocket']})
+
     socket.on('connect', (d) => {
         console.log("socket.io connected", socket_host);
+        updateCharacters()
     });
 
     socket.on('connect_error', (d) => {
@@ -49,14 +63,13 @@ async function main() {
     });
 
     socket.on('start_character', (arg1) => {
+        console.log('start_character', arg1);
         if (bots[arg1.char_name] && bots[arg1.char_name].status !== "off") return;
         if (!httpWrapper) {
-            httpWrapper = new HttpWrapper(arg1.auth, arg1.auth.split("-")[1], arg1.auth.split("-")[0]);
-            updateCharacters(httpWrapper)
-            setInterval(updateCharacters, 20000, httpWrapper);
+            httpWrapper = new HttpWrapper(auth, auth.split("-")[1], auth.split("-")[0]);
+            setInterval(updateCharacters, 20000);
         }
         config['auth'] = arg1.auth;
-
         bots[arg1.char_name] = {
             status: "start",
             charName: arg1.char_name,
@@ -71,12 +84,7 @@ async function main() {
         bots[arg1.char_name].stop = true;
     });
 
-    socket.on('reload', (data) => {
-        socket.emit("info", {bots})
-    })
-
     setInterval(() => {
-        console.log("----");
         for (const bot of Object.values(bots)) {
             if (bot.stop) {
                 if (activeChildren[bot.charName]) {
@@ -90,18 +98,19 @@ async function main() {
                 case 'start':
                     bot.status = "loading"
                     console.log("starting bot...")
-                    startGame(bot.charName, [config.auth, config.auth.split("-")[1], config.auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
+                    startGame(bot.charName, [auth, auth.split("-")[1], auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
                     break
             }
-            console.log(bot.charName, bot.status)
+            // console.log(bot.charName, bot.status)
         }
-        socket.emit("info", {bots})
-    }, 1000)
+        const time = new Date().getTime()
+        socket.emit("info", {bots, time})
+    }, 2500)
 }
 
 
 function updateChildrenData() {
-    for (var i in activeChildren) {
+    for (const i in activeChildren) {
         // wo dont send active clients to code started bots to imitate web client
         if (!inactiveBots[i]) activeChildren[i].send({
             type: "active_characters",
@@ -110,8 +119,23 @@ function updateChildrenData() {
     }
 }
 
-async function updateCharacters(httpWrapper) {
-    if (!httpWrapper) return;
+async function updateCharacters() {
+    if (!auth) return;
+    const form = new FormData();
+    form.append('method', 'servers_and_characters');
+    form.append('arguments', "{}");
+    const headers = form.getHeaders();
+    headers.cookie = "auth=" + auth;
+    axios.post("https://adventure.land/api/servers_and_characters", form, {headers}).then(response => {
+        let data = response.data[0];
+        servers = data.servers;
+        socket.emit("characters", data.characters)
+        socket.emit("servers", data.servers)
+    }, error => {
+    })
+
+
+    /*
     let response = await httpWrapper.getServersAndCharacters();
     for (var i in activeChildren) {
         if (activeChildren.hasOwnProperty(i)) {
@@ -122,6 +146,7 @@ async function updateCharacters(httpWrapper) {
             }
         }
     }
+    */
 }
 
 function startGame(charName, args) {
@@ -181,8 +206,23 @@ function startGame(charName, args) {
                             console.log("started", m.name)
                         }
              */
+        } else if (m.type === "api_call") {
+            if (!auth) return;
+            const form = new FormData();
+            form.append('method', m.command);
+            form.append('arguments', m.arguments || "{}");
+            const headers = form.getHeaders();
+            headers.cookie = "auth=" + auth;
+            axios.post(`https://adventure.land/api/${m.command}`, form, {headers}).then(response => {
+                let data = response.data[0];
+                childProcess.send({
+                    type: "api_response",
+                    data: data,
+                });
+            }, error => {
+            })
         }
     });
 }
 
-main()
+main().then()

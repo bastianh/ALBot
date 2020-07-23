@@ -39,12 +39,14 @@ var Executor = function (glob, file) {
                 trigger_character_event("cm", { name:m.from, message:m.data })
             }
         });
+        /*
         process.on('message', (m) => {
             if (m.type === "send_cm_failed") {
+                console.log("S_CM_F",2)
                 parent.send_code_message(m.characterName, m.data);
             }
         });
-
+        */
         (1,eval)(fs.readFileSync('CODE/' + file) + '');
 
         // This exports scoped functions to the game object,

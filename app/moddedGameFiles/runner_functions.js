@@ -655,6 +655,7 @@ function send_cm(to, data) {
 
 process.on("message", function (m) {
     if (m.type === "send_cm_failed") {
+        // console.log("S_CM_F",1)
         parent.send_code_message(m.characterName, m.data);
     } else if (m.type === "active_characters") {
         active_characters = m.data;

@@ -4,8 +4,8 @@
 global.XMLHttpRequest = require("xmlhttprequest").XMLHttpRequest;
 global.io = require("socket.io-client");
 process.on('uncaughtException', function (exception) {
-    console.log(exception);
-    console.log(exception.stack);
+    console.log("E1", exception);
+    console.log("E2", exception.stack);
     process.exit(-1);
 });
 var LocalStorage = require('node-localstorage').LocalStorage;
@@ -218,6 +218,7 @@ Game.prototype.init = function () {
         storage_get: storage_get,
         storage_set: storage_set,
         monster_attack: monster_attack,
+        api_call: api_call,
         is_bot: true,
         albot: true,
     };

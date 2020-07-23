@@ -3621,10 +3621,15 @@ function init_socket() {
         reopen()
     });
     socket.on("simple_eval", function (data) {
+        console.log("SIMPLE_EVAL", data)
         eval(data.code || data || "")
     });
     socket.on("eval", function (data) {
+        // console.log("EVAL", data)
         smart_eval(data.code || data || "", data.args)
+    });
+    socket.on("code_eval", function (data) {
+        console.log("CODE_EVAL", eval(data))
     });
     socket.on("player", function(data) {
         var hitchhikers = data.hitchhikers;
@@ -6103,9 +6108,8 @@ function create_map() {
         if (r.type == "full" || r.role == "citizen") {
             continue
         }
-        console.log("NPC: " + F.id);
+        // console.log("NPC: " + F.id);
         var m = add_npc(r, F.position, F.name, F.id);
-        //map.addChild(n);
         map_npcs.push(m);
         map_entities.push(m)
     }
@@ -6113,8 +6117,7 @@ function create_map() {
     for (var B = 0; B < doors.length; B++) {
         var v = doors[B];
         var m = add_door(v);
-        console.log("Door: " + v);
-        //map.addChild(n);
+        // console.log("Door: " + v);
         map_doors.push(m);
         map_entities.push(m);
         if (border_mode) {
@@ -6138,8 +6141,7 @@ function create_map() {
     for (var B = 0; B < quirks.length; B++) {
         var A = quirks[B];
         var m = add_quirk(A);
-        console.log("Quirk: " + A);
-        //map.addChild(n);
+        // console.log("Quirk: " + A);
         map_entities.push(m);
         if (border_mode) {
             border_logic(m)
