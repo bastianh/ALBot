@@ -2889,70 +2889,7 @@ function d_text(p, l, k, j) {
 }
 
 function api_call(command, c, g) {
-    if (!c) {
-        c = {}
-    }
-    if (!g) {
-        g = {}
-    }
-    var path = "/api/" + command, b = g.disable;
-    if (c.ui_loader) {
-        g.r_id = randomStr(10);
-        delete c.ui_loader
-    }
-    if (c.callback) {
-        g.callback = c.callback;
-        delete c.callback
-    }
-    if (b) {
-        b.addClass("disable")
-    }
-    data = {method: command, "arguments": JSON.stringify(c)};
-
-    function success(k, j) {
-        return function (l) {
-            if (k.r_id) {
-                hide_loader(k.r_id)
-            }
-            if (k.callback) {
-                k.callback.apply(this, [l])
-            } else {
-                handle_information(l)
-            }
-            if (k.success) {
-                smart_eval(k.success)
-            }
-            if (j) {
-                j.removeClass("disable")
-            }
-        }
-    }
-
-    function error(k, j) {
-        return function (l) {
-            if (k.r_id) {
-                hide_loader(k.r_id)
-            }
-            if (k.silent || in_arr(command, auto_api_methods)) {
-                return
-            }
-            ui_error("An Unknown Error");
-        }
-    }
-
-    if (g.r_id) {
-        show_loader(g.r_id)
-    }
-    call_args = {
-        type: "POST",
-        dataType: "json",
-        url: base_url + path,
-        data: data,
-        success: success(g, b),
-        error: error(g, b)
-    };
-    //TODO
-    //$.ajax(call_args)
+    process.send({type:"api_call",command, arguments:c})
 }
 
 function api_call_l(c, a, b) {

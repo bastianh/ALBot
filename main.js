@@ -80,6 +80,7 @@ async function main() {
     });
 
     socket.on('stop_character', (arg1) => {
+        console.log("stop character", arg1)
         if (!bots[arg1.char_name] || bots[arg1.char_name].status === "off") return;
         bots[arg1.char_name].stop = true;
     });
@@ -161,7 +162,20 @@ function startGame(charName, args) {
 
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
-        if (m.type === "status" && m.status === "disconnected") {
+        if (m.type === "status" && m.status === "error") {
+            bots[charName].status = "error";
+            childProcess.kill();
+            for (var i in activeChildren) {
+                if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
+                    activeChildren[i] = null;
+                    codeStatus[i] = "loading"
+                }
+            }
+        } else if (m.type === "status" && m.status === "initialized") {
+            activeChildren[charName] = childProcess;
+            bots[charName].status = "initialized";
+            bots[charName].pid = childProcess.pid;
+        } else if (m.type === "status" && m.status === "disconnected") {
             childProcess.kill();
             for (var i in activeChildren) {
                 if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {

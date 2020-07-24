@@ -6,7 +6,8 @@ global.io = require("socket.io-client");
 process.on('uncaughtException', function (exception) {
     console.log("E1", exception);
     console.log("E2", exception.stack);
-    process.exit(-1);
+    process.send({type: "status", status: "error"});
+    // process.exit(-1);
 });
 var LocalStorage = require('node-localstorage').LocalStorage;
 var HttpWrapper = require("./httpWrapper");
@@ -149,6 +150,8 @@ Game.prototype.init = function () {
     game.pathfinding.initialize(this.G);
     */
     var bwi = {};
+
+    process.send({type: "status", status: "initialized"});
 
     //static variables
     var glob = {
@@ -499,7 +502,8 @@ async function main() {
         let game = new Game(args[3], args[4], args[5], args[6], args[7], gameData, httpWrapper);
         game.init();
     } catch (e) {
-        console.log(e)
+        console.error("MAIN ERROR", e)
+        process.send({type: "status", status: "error"});
     }
 }
 
