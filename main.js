@@ -17,6 +17,7 @@ var codeStatus = {};
 var config = {};
 var auth = "";
 var servers = undefined;
+var started = new Date().getTime()
 socket = undefined
 
 const io = require('socket.io-client');
@@ -62,6 +63,11 @@ async function main() {
         console.log("socket.io timeout", d);
     });
 
+    socket.on('kill_albot', () => {
+        console.log("exiting albot...")
+        process.exit()
+    });
+
     socket.on('start_character', (arg1) => {
         console.log('start_character', arg1);
         if (bots[arg1.char_name] && bots[arg1.char_name].status !== "off") return;
@@ -104,8 +110,9 @@ async function main() {
             }
             // console.log(bot.charName, bot.status)
         }
-        const time = new Date().getTime()
-        socket.emit("info", {bots, time})
+        const time = new Date().getTime();
+        const upTime = time - started;
+        socket.emit("info", {bots, time, upTime})
     }, 2500)
 }
 
