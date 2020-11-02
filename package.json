@@ -1,10 +1,11 @@
 {
   "name": "adventurelandbot",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "",
   "main": "main.js",
   "scripts": {
-    "start": "node main.js"
+    "start": "node main.js",
+    "pathfinding": "node /app/path"
   },
   "author": "Patric Wellershaus",
   "license": "GNU GPLv3.0",
@@ -15,10 +16,11 @@
     "extend": "3.0.2",
     "lodash": "^4.17.15",
     "node-localstorage": "2.1.5",
-    "pngjs": "3.4.0",
+    "pngjs": "^3.4.0",
     "promise": "8.0.3",
     "request": "2.88.0",
     "request-promise-native": "1.0.8",
+    "socket.io": "^2.3.0",
     "socket.io-client": "2.3.0",
     "sync-request": "6.1.0",
     "xmlhttprequest": "^1.8.0"
