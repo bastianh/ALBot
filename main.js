@@ -91,8 +91,7 @@ async function main() {
         bots[arg1.char_name].stop = true;
     });
 
-    var game_version = await httpWrapper.getGameVersion();
-
+    /*
     // starting pathfinding daemon
     let pathfinderProcess = null;
     if (userData.config.pathfinding && userData.config.pathfinding.activate) {
@@ -104,6 +103,7 @@ async function main() {
             ]
         });
     }
+    */
 
     setInterval(() => {
         for (const bot of Object.values(bots)) {
