@@ -15,27 +15,40 @@ var httpWrapper = undefined;
 var activeChildren = {};
 var codeStatus = {};
 var config = {};
-var auth = "";
-var servers = undefined;
 var started = new Date().getTime()
 socket = undefined
 
 const io = require('socket.io-client');
 
-async function main() {
-    const token = process.env.TOKEN;
-    const host = process.env.HOST;
-    const socket_host = process.env.SOCKET_HOST || host;
+function startCharacter(charId, charName, ip, port) {
+    console.log('start_character', charName, ip, port);
+    if (bots[charName] && bots[charName].status !== "off") return;
+    bots[charName] = {
+        status: "start",
+        charName: charName,
+        ip: ip,
+        port: port,
+        charId: charId
+    }
+}
 
-    if (!token || !host) {
+async function main() {
+    config.manager = process.env.HOST;
+    config.manager_token = process.env.TOKEN;
+    const socket_host = process.env.SOCKET_HOST || config.manager;
+    let initialCharacterConfig = undefined
+    if (!config.manager_token || !config.manager) {
         console.warn("missing host or token")
         process.exit()
     }
     try {
-        const configCall = await axios.get(`${host}/api/info/albot`, {headers: {'Authorization': token}})
+        const configCall = await axios.get(`${config.manager}/api/info/albot`, {headers: {'Authorization': config.manager_token}})
         fs.writeFileSync("CODE/default.js", configCall.data.code)
-        auth = configCall.data.auth;
-        if (!auth) {
+        config.auth = configCall.data.auth;
+        config.servers = configCall.data.servers
+        initialCharacterConfig = configCall.data.chars
+        // console.log("X", configCall.data)
+        if (!config.auth) {
             console.warn("got no auth");
             process.exit();
         }
@@ -44,15 +57,17 @@ async function main() {
         process.exit()
     }
 
-    const socket_url = `${socket_host}/albot?token=${token}`
+    httpWrapper = new HttpWrapper(config.auth, config.auth.split("-")[1], config.auth.split("-")[0]);
+    setInterval(updateCharacters, 30000);
+
+    const socket_url = `${socket_host}/albot?token=${config.manager_token}`
 
     console.log("connecting socket:" + socket_url)
 
-    socket = io(socket_url, {transport: ['websocket']})
+    const socket = io(socket_url, {transport: ['websocket']})
 
     socket.on('connect', (d) => {
         console.log("socket.io connected", socket_host);
-        updateCharacters()
     });
 
     socket.on('connect_error', (d) => {
@@ -69,20 +84,7 @@ async function main() {
     });
 
     socket.on('start_character', (arg1) => {
-        console.log('start_character', arg1);
-        if (bots[arg1.char_name] && bots[arg1.char_name].status !== "off") return;
-        if (!httpWrapper) {
-            httpWrapper = new HttpWrapper(auth, auth.split("-")[1], auth.split("-")[0]);
-            setInterval(updateCharacters, 20000);
-        }
-        config['auth'] = arg1.auth;
-        bots[arg1.char_name] = {
-            status: "start",
-            charName: arg1.char_name,
-            ip: arg1.ip,
-            port: arg1.port,
-            charId: arg1.char_id
-        }
+        startCharacter(arg1['char_id'], arg1['char_name'], arg1.ip, arg1.port)
     });
 
     socket.on('stop_character', (arg1) => {
@@ -119,7 +121,7 @@ async function main() {
                 case 'start':
                     bot.status = "loading"
                     console.log("starting bot...")
-                    startGame(bot.charName, [auth, auth.split("-")[1], auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
+                    startGame(bot.charName, [config.auth, config.auth.split("-")[1], config.auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
                     break
             }
             // console.log(bot.charName, bot.status)
@@ -128,8 +130,24 @@ async function main() {
         const upTime = time - started;
         socket.emit("info", {bots, time, upTime})
     }, 2500)
+
+    // autostart
+    setTimeout(autoConnect, 5000, initialCharacterConfig);
 }
 
+function autoConnect(initialCharacterConfig) {
+    for (const cdata of initialCharacterConfig) {
+        if (cdata.autoconnect) {
+            const server = config.servers[cdata.autoconnect];
+            if (!server) {
+                console.warn("autostart " + cdata.name + " server " + cdata.autoconnect + "not found!")
+                continue;
+            }
+            startCharacter(cdata.id, cdata.name, server.addr, server.port)
+        }
+    }
+
+}
 
 function updateChildrenData() {
     for (const i in activeChildren) {
@@ -142,18 +160,29 @@ function updateChildrenData() {
 }
 
 async function updateCharacters() {
-    if (!auth) return;
+    if (!config.auth) return;
     const form = new FormData();
     form.append('method', 'servers_and_characters');
     form.append('arguments', "{}");
     const headers = form.getHeaders();
-    headers.cookie = "auth=" + auth;
+    headers.cookie = "auth=" + config.auth;
     axios.post("https://adventure.land/api/servers_and_characters", form, {headers}).then(response => {
         let data = response.data[0];
         servers = data.servers;
-        socket.emit("characters", data.characters)
-        socket.emit("servers", data.servers)
+        config.servers = {}
+        for (let server of data.servers) {
+            config.servers[server.key] = server;
+        }
+        axios.post(`${config.manager}/api/albot/update_servers_and_characters`, {
+            characters: data.characters,
+            servers: data.servers
+        }, {headers: {'Authorization': config.manager_token}}).then(data => {
+            console.log("update character&servers to manager", data.data)
+        }, error => {
+            console.error("update character&servers to manager (ERROR)", error)
+        })
     }, error => {
+        console.warn("error updating characters&servers", error)
     })
 
 
@@ -177,7 +206,7 @@ function startGame(charName, args) {
         execArgv: [
             // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
             //'--inspect-brk',
-            //"--max_old_space_size=4096",
+            //"--max_old_space_size=f4096",
         ]
     });
 
@@ -242,12 +271,12 @@ function startGame(charName, args) {
                         }
              */
         } else if (m.type === "api_call") {
-            if (!auth) return;
+            if (!config.auth) return;
             const form = new FormData();
             form.append('method', m.command);
             form.append('arguments', m.arguments || "{}");
             const headers = form.getHeaders();
-            headers.cookie = "auth=" + auth;
+            headers.cookie = "auth=" + config.auth;
             axios.post(`https://adventure.land/api/${m.command}`, form, {headers}).then(response => {
                 let data = response.data[0];
                 childProcess.send({
