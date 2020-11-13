@@ -2,9 +2,11 @@ process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
 });
-var child_process = require("child_process");
 
-var HttpWrapper = require("./app/httpWrapper");
+const {Worker, SHARE_ENV} = require('worker_threads');
+const child_process = require("child_process");
+
+const HttpWrapper = require("./app/httpWrapper");
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
@@ -121,7 +123,14 @@ async function main() {
                 case 'start':
                     bot.status = "loading"
                     console.log("starting bot...")
-                    startGame(bot.charName, [config.auth, config.auth.split("-")[1], config.auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
+                    startGame( {
+                        name: bot.charName,
+                        auth: config.auth,
+                        ip: bot.ip,
+                        port: bot.port,
+                        charid: bot.charId,
+                        script: "default.js"
+                    });
                     break
             }
             // console.log(bot.charName, bot.status)
@@ -133,6 +142,17 @@ async function main() {
 
     // autostart
     setTimeout(autoConnect, 5000, initialCharacterConfig);
+    startTelegramBot("1470949361:AAFBYV2Q5mCs7GhxT4oAR_gHFzh1akhPg8o")
+}
+
+function startTelegramBot(token) {
+    return new Worker('./bot.js', {env: SHARE_ENV, argv: [token]})
+        .on('message', function (data) {
+            console.log("M", data)
+        })
+        .on('exit', () => {
+            console.log("telegram bot exit");
+        });
 }
 
 function autoConnect(initialCharacterConfig) {
@@ -200,44 +220,41 @@ async function updateCharacters() {
     */
 }
 
-function startGame(charName, args) {
-    let childProcess = child_process.fork("./app/game", args, {
-        stdio: [0, 1, 2, 'ipc'],
-        execArgv: [
-            // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
-            //'--inspect-brk',
-            //"--max_old_space_size=f4096",
-        ]
-    });
+function startGame(args) {
+    let childProcess = new Worker("./app/game_worker.js", {workerData: args});
 
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "error") {
-            bots[charName].status = "error";
-            childProcess.kill();
-            for (var i in activeChildren) {
-                if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                    activeChildren[i] = null;
-                    codeStatus[i] = "loading"
+            bots[args.name].status = "error";
+            childProcess.terminate().then(e => {
+                console.log("CHILDPROCESS TERMINATED!");
+                for (var i in activeChildren) {
+                    if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
+                        activeChildren[i] = null;
+                        codeStatus[i] = "loading"
+                    }
                 }
-            }
+            })
         } else if (m.type === "status" && m.status === "initialized") {
-            activeChildren[charName] = childProcess;
-            bots[charName].status = "initialized";
-            bots[charName].pid = childProcess.pid;
+            activeChildren[args.name] = childProcess;
+            bots[args.name].status = "initialized";
+            bots[args.name].pid = childProcess.pid;
         } else if (m.type === "status" && m.status === "disconnected") {
-            childProcess.kill();
-            for (var i in activeChildren) {
-                if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                    activeChildren[i] = null;
-                    codeStatus[i] = "loading"
+            childProcess.terminate().then(e => {
+                console.log("CHILDPROCESS TERMINATED!");
+                for (var i in activeChildren) {
+                    if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
+                        activeChildren[i] = null;
+                        codeStatus[i] = "loading"
+                    }
                 }
-            }
+                startGame( args);
+                updateChildrenData();
+            })
             // BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
-            startGame(charName, args);
-            updateChildrenData();
         } else if (m.type === "bwiUpdate") {
-            bots[charName].bwi = m.data;
+            bots[args.name].bwi = m.data;
         } else if (m.type === "bwiPush") {
             // botInterface.pushData(m.name, m.data);
         } else if (m.type === "startupClient") {
@@ -254,7 +271,7 @@ function startGame(charName, args) {
                     data: m.data,
                 })
             } else {
-                childProcess.send({
+                childProcess.postMessage({
                     type: "send_cm_failed",
                     characterName: m.characterName,
                     data: m.data,
@@ -279,7 +296,7 @@ function startGame(charName, args) {
             headers.cookie = "auth=" + config.auth;
             axios.post(`https://adventure.land/api/${m.command}`, form, {headers}).then(response => {
                 let data = response.data[0];
-                childProcess.send({
+                childProcess.postMessage({
                     type: "api_response",
                     data: data,
                 });

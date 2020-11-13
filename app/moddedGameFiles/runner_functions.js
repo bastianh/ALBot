@@ -645,7 +645,7 @@ function handle_command(command, args) // command's are things like "/party" tha
 function send_cm(to, data) {
     // to: Name or Array of Name's
     // data: JSON object
-    process.send({
+    parentPort.postMessage({
         type: "send_cm",
         characterName: to,
         data: data,

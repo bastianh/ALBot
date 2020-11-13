@@ -2,6 +2,7 @@
  * Created by Nexus on 26.07.2017.
  */
 var fs = require("fs")
+var { parentPort } = require('worker_threads');
 
 request = require("sync-request")
 parent = {};
@@ -29,7 +30,7 @@ var Executor = function (glob, file) {
     process_game_data();
     this.execute = function () {
         console.log("Executing " + file);
-        process.send({
+        parentPort.postMessage({
             type:"startupClient",
             characterName: character.name,
         });
