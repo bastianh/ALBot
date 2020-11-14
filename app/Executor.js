@@ -2,9 +2,8 @@
  * Created by Nexus on 26.07.2017.
  */
 var fs = require("fs")
-var { parentPort } = require('worker_threads');
 
-request = require("sync-request")
+// request = require("sync-request")
 parent = {};
 character = {};
 G = {};
@@ -30,13 +29,13 @@ var Executor = function (glob, file) {
     process_game_data();
     this.execute = function () {
         console.log("Executing " + file);
-        parentPort.postMessage({
+        process.send({
             type:"startupClient",
             characterName: character.name,
         });
         process.on('message', (m) => {
             if (m.type === "on_cm") {
-                parent.call_code_function("on_cm", m.from, m.data);
+                // parent.call_code_function("on_cm", m.from, m.data);
                 trigger_character_event("cm", { name:m.from, message:m.data })
             }
         });

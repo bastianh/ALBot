@@ -11,38 +11,44 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 
-var bots = {}
-var inactiveBots = {};
+console.log("PID:", process.pid)
+
+//var inactiveBots = {};
 var httpWrapper = undefined;
-var activeChildren = {};
-var codeStatus = {};
+//var activeChildren = {};
+//var codeStatus = {};
 var config = {};
+var bots = {}
 var started = new Date().getTime()
-socket = undefined
 
-const io = require('socket.io-client');
-
-function startCharacter(charId, charName, ip, port) {
-    console.log('start_character', charName, ip, port);
-    if (bots[charName] && bots[charName].status !== "off") return;
-    bots[charName] = {
-        status: "start",
-        charName: charName,
-        ip: ip,
-        port: port,
-        charId: charId
-    }
-}
+let socketRemote = undefined;
 
 async function main() {
     config.manager = process.env.HOST;
     config.manager_token = process.env.TOKEN;
-    const socket_host = process.env.SOCKET_HOST || config.manager;
     let initialCharacterConfig = undefined
     if (!config.manager_token || !config.manager) {
         console.warn("missing host or token")
         process.exit()
     }
+
+    socketRemote = new Worker("./remote.js", {
+        workerData: {
+            token: config.manager_token,
+            host: process.env.SOCKET_HOST || config.manager
+        }
+    })
+    socketRemote.on('exit', (code) => {
+        if (code !== 0) console.log(`Remote stopped with exit code ${code}`);
+    });
+    socketRemote.on('message', msg => {
+        switch (msg.type) {
+            case 'startCharacter':
+                startGame(msg);
+        }
+        console.log("message", msg)
+    });
+
     try {
         const configCall = await axios.get(`${config.manager}/api/info/albot`, {headers: {'Authorization': config.manager_token}})
         fs.writeFileSync("CODE/default.js", configCall.data.code)
@@ -59,41 +65,9 @@ async function main() {
         process.exit()
     }
 
-    httpWrapper = new HttpWrapper(config.auth, config.auth.split("-")[1], config.auth.split("-")[0]);
+    httpWrapper = new HttpWrapper(config.auth);
     setInterval(updateCharacters, 30000);
 
-    const socket_url = `${socket_host}/albot?token=${config.manager_token}`
-
-    console.log("connecting socket:" + socket_url)
-
-    const socket = io(socket_url, {transport: ['websocket']})
-
-    socket.on('connect', (d) => {
-        console.log("socket.io connected", socket_host);
-    });
-
-    socket.on('connect_error', (d) => {
-        console.log("socket.io error", socket, d);
-    });
-
-    socket.on('connect_timeout', (d) => {
-        console.log("socket.io timeout", d);
-    });
-
-    socket.on('kill_albot', () => {
-        console.log("exiting albot...")
-        process.exit()
-    });
-
-    socket.on('start_character', (arg1) => {
-        startCharacter(arg1['char_id'], arg1['char_name'], arg1.ip, arg1.port)
-    });
-
-    socket.on('stop_character', (arg1) => {
-        console.log("stop character", arg1)
-        if (!bots[arg1.char_name] || bots[arg1.char_name].status === "off") return;
-        bots[arg1.char_name].stop = true;
-    });
 
     /*
     // starting pathfinding daemon
@@ -123,21 +97,14 @@ async function main() {
                 case 'start':
                     bot.status = "loading"
                     console.log("starting bot...")
-                    startGame( {
-                        name: bot.charName,
-                        auth: config.auth,
-                        ip: bot.ip,
-                        port: bot.port,
-                        charid: bot.charId,
-                        script: "default.js"
-                    });
+                    startGame(bot.charName, [config.auth, config.auth.split("-")[1], config.auth.split("-")[0], bot.ip, bot.port, bot.charId, "default.js", false]);
                     break
             }
             // console.log(bot.charName, bot.status)
         }
         const time = new Date().getTime();
         const upTime = time - started;
-        socket.emit("info", {bots, time, upTime})
+        // socket.emit("info", {bots, time, upTime})
     }, 2500)
 
     // autostart
@@ -166,7 +133,6 @@ function autoConnect(initialCharacterConfig) {
             startCharacter(cdata.id, cdata.name, server.addr, server.port)
         }
     }
-
 }
 
 function updateChildrenData() {
@@ -221,48 +187,45 @@ async function updateCharacters() {
 }
 
 function startGame(args) {
-    let childProcess = new Worker("./app/game_worker.js", {workerData: args});
 
+//    [config.auth, bot.ip, bot.port, bot.charId, "default.js", false]
+    const charId = args.charId;
+    const charName = args.charName;
+    const localBot = bots[charId] = (bots[charId] || {status: "off", active: false})
+    if (localBot.status !== "off") return;
+    localBot.status = "starting";
+    localBot.name = charName
+
+    const childProcess = child_process.fork("./app/game", [args.addr, args.port, args.charId, "default.js"], {
+        stdio: [0, 1, 2, 'ipc'],
+        execArgv: [
+            // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
+            //'--inspect-brk',
+            //"--max_old_space_size=f4096",
+        ]
+    });
+
+    localBot.process = childProcess;
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "error") {
-            bots[args.name].status = "error";
-            childProcess.terminate().then(e => {
-                console.log("CHILDPROCESS TERMINATED!");
-                for (var i in activeChildren) {
-                    if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                        activeChildren[i] = null;
-                        codeStatus[i] = "loading"
-                    }
-                }
-            })
+            localBot.status = "error";
+            localBot.process = undefined;
+            childProcess.kill();
         } else if (m.type === "status" && m.status === "initialized") {
-            activeChildren[args.name] = childProcess;
-            bots[args.name].status = "initialized";
-            bots[args.name].pid = childProcess.pid;
+            localBot.status = "initialized";
         } else if (m.type === "status" && m.status === "disconnected") {
-            childProcess.terminate().then(e => {
-                console.log("CHILDPROCESS TERMINATED!");
-                for (var i in activeChildren) {
-                    if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                        activeChildren[i] = null;
-                        codeStatus[i] = "loading"
-                    }
-                }
-                startGame( args);
-                updateChildrenData();
-            })
-            // BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
+            localBot.status = "error";
+            localBot.process = undefined;
+            childProcess.kill();
+            setTimeout(startGame, 2000, args)
         } else if (m.type === "bwiUpdate") {
-            bots[args.name].bwi = m.data;
-        } else if (m.type === "bwiPush") {
-            // botInterface.pushData(m.name, m.data);
+            localBot.bwi = m.data;
         } else if (m.type === "startupClient") {
-            activeChildren[m.characterName] = childProcess;
-            bots[m.characterName].status = "running"
-            bots[m.characterName].lastConnect = new Date().getTime();
-            codeStatus[m.characterName] = "code";
-            updateChildrenData();
+            localBot.status = "running"
+            localBot.lastConnect = new Date().getTime();
+            // codeStatus[m.characterName] = "code";
+            // updateChildrenData();
         } else if (m.type === "send_cm") {
             if (activeChildren[m.characterName]) {
                 activeChildren[m.characterName].send({
@@ -271,7 +234,7 @@ function startGame(args) {
                     data: m.data,
                 })
             } else {
-                childProcess.postMessage({
+                childProcess.send({
                     type: "send_cm_failed",
                     characterName: m.characterName,
                     data: m.data,
@@ -296,7 +259,7 @@ function startGame(args) {
             headers.cookie = "auth=" + config.auth;
             axios.post(`https://adventure.land/api/${m.command}`, form, {headers}).then(response => {
                 let data = response.data[0];
-                childProcess.postMessage({
+                childProcess.send({
                     type: "api_response",
                     data: data,
                 });

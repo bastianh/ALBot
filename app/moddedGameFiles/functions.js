@@ -1281,7 +1281,7 @@ function start_character_runner(b, d) {
     if (gameplay == "test") {
         c += randomStr(10)
     }
-    parentPort.postMessage({
+    process.send({
         type: "start_character",
         name: b,
         data: d,
@@ -2880,7 +2880,7 @@ function d_text(p, l, k, j) {
 }
 
 function api_call(command, c, g) {
-    parentPort.postMessage({type:"api_call",command, arguments:c})
+    process.send({type:"api_call",command, arguments:c})
 }
 
 function api_call_l(c, a, b) {

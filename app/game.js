@@ -499,7 +499,7 @@ async function sleep(ms) {
 async function main() {
     try {
         let args = process.argv.slice(2);
-        let httpWrapper = new HttpWrapper(args[0], args[1], args[2]);
+        let httpWrapper = new HttpWrapper(args[0]);
         let gameData;
         let success = false;
         while (!success) {
@@ -540,7 +540,7 @@ async function main() {
 
 
 
-        let game = new Game(args[3], args[4], args[5], args[6], args[7], gameData, httpWrapper, X);
+        let game = new Game(args[1], args[2], args[3], args[4], args[5], gameData, httpWrapper, X);
         game.init();
     } catch (e) {
         console.error("MAIN ERROR", e)
