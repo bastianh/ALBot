@@ -1,8 +1,10 @@
+/*
 process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
+    process.exit()
 });
-
+*/
 const {Worker, SHARE_ENV} = require('worker_threads');
 const child_process = require("child_process");
 
@@ -13,15 +15,27 @@ const fs = require('fs');
 
 console.log("PID:", process.pid)
 
-//var inactiveBots = {};
 var httpWrapper = undefined;
-//var activeChildren = {};
-//var codeStatus = {};
 var config = {};
 var bots = {}
 var started = new Date().getTime()
 
 let socketRemote = undefined;
+let telegramBot = undefined;
+
+function getInfo() {
+    let info = {};
+    for (let bot in bots) {
+        info[bot] = {
+            server: bots[bot].server,
+            status: bots[bot].status,
+            name: bots[bot].name,
+            bwi: bots[bot].bwi,
+            lastConnect: bots[bot].lastConnect,
+        }
+    }
+    return info
+}
 
 async function main() {
     config.manager = process.env.HOST;
@@ -31,12 +45,11 @@ async function main() {
         console.warn("missing host or token")
         process.exit()
     }
-
     socketRemote = new Worker("./remote.js", {
         workerData: {
             token: config.manager_token,
             host: process.env.SOCKET_HOST || config.manager
-        }
+        }, env: SHARE_ENV
     })
     socketRemote.on('exit', (code) => {
         if (code !== 0) console.log(`Remote stopped with exit code ${code}`);
@@ -45,6 +58,12 @@ async function main() {
         switch (msg.type) {
             case 'startCharacter':
                 startGame(msg);
+                break;
+            case 'exit':
+                process.exit();
+                break;
+            default:
+                console.log("unhandled remote", msg);
         }
         console.log("message", msg)
     });
@@ -67,7 +86,6 @@ async function main() {
 
     httpWrapper = new HttpWrapper(config.auth);
     setInterval(updateCharacters, 30000);
-
 
     /*
     // starting pathfinding daemon
@@ -102,20 +120,29 @@ async function main() {
             }
             // console.log(bot.charName, bot.status)
         }
+        let info = getInfo();
         const time = new Date().getTime();
         const upTime = time - started;
-        // socket.emit("info", {bots, time, upTime})
-    }, 2500)
+        socketRemote.postMessage({type: "info", info, time, upTime})
+    }, 1000)
 
     // autostart
-    setTimeout(autoConnect, 5000, initialCharacterConfig);
-    startTelegramBot("1470949361:AAFBYV2Q5mCs7GhxT4oAR_gHFzh1akhPg8o")
+    setTimeout(autoConnect, 2000, initialCharacterConfig);
+    telegramBot = startTelegramBot()
 }
 
-function startTelegramBot(token) {
-    return new Worker('./bot.js', {env: SHARE_ENV, argv: [token]})
-        .on('message', function (data) {
-            console.log("M", data)
+function startTelegramBot() {
+    return new Worker('./bot.js', {env: SHARE_ENV})
+        .on('message', function (event) {
+            console.log("M", event)
+            switch (event.type) {
+                case "info":
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(getInfo())})
+                    break;
+                case "config":
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(config)})
+                    break;
+            }
         })
         .on('exit', () => {
             console.log("telegram bot exit");
@@ -130,7 +157,11 @@ function autoConnect(initialCharacterConfig) {
                 console.warn("autostart " + cdata.name + " server " + cdata.autoconnect + "not found!")
                 continue;
             }
-            startCharacter(cdata.id, cdata.name, server.addr, server.port)
+            startGame({
+                charId: cdata.id,
+                charName: cdata.name,
+                server: cdata.autoconnect
+            })
         }
     }
 }
@@ -187,16 +218,16 @@ async function updateCharacters() {
 }
 
 function startGame(args) {
-
-//    [config.auth, bot.ip, bot.port, bot.charId, "default.js", false]
     const charId = args.charId;
     const charName = args.charName;
-    const localBot = bots[charId] = (bots[charId] || {status: "off", active: false})
-    if (localBot.status !== "off") return;
+    const localBot = bots[charId] = (bots[charId] || {status: "off"});
+    const server = config.servers[args.server];
+    console.log("startGame", args);
+    if (!server || localBot.status !== "off") return;
     localBot.status = "starting";
     localBot.name = charName
-
-    const childProcess = child_process.fork("./app/game", [args.addr, args.port, args.charId, "default.js"], {
+    localBot.server = server.key;
+    const childProcess = child_process.fork("./app/game", [config.auth, server.addr, server.port, charId, "default.js"], {
         stdio: [0, 1, 2, 'ipc'],
         execArgv: [
             // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
@@ -211,6 +242,7 @@ function startGame(args) {
         if (m.type === "status" && m.status === "error") {
             localBot.status = "error";
             localBot.process = undefined;
+            telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
             childProcess.kill();
         } else if (m.type === "status" && m.status === "initialized") {
             localBot.status = "initialized";
@@ -227,19 +259,23 @@ function startGame(args) {
             // codeStatus[m.characterName] = "code";
             // updateChildrenData();
         } else if (m.type === "send_cm") {
-            if (activeChildren[m.characterName]) {
-                activeChildren[m.characterName].send({
-                    type: "on_cm",
-                    from: m.from,
-                    data: m.data,
-                })
-            } else {
-                childProcess.send({
-                    type: "send_cm_failed",
-                    characterName: m.characterName,
-                    data: m.data,
-                });
+            let sent = false;
+            for (let bot in bots) {
+                if (bots[bot].name === m.characterName && bots[bot].process) {
+                    bots[bot].process.send({
+                        type: "on_cm",
+                        from: m.from,
+                        data: m.data,
+                    })
+                    sent = true;
+                }
             }
+            if (!sent) childProcess.send({
+                type: "send_cm_failed",
+                characterName: m.characterName,
+                data: m.data,
+            });
+
         } else if (m.type === "start_character") {
             /*            let bot = inactiveBots[m.name];
                         if (bot && !activeChildren[m.name]) {
@@ -265,6 +301,10 @@ function startGame(args) {
                 });
             }, error => {
             })
+        } else if (m.type === "log_message") {
+            if (telegramBot) telegramBot.postMessage(m);
+        } else {
+            console.log("unknown call", m)
         }
     });
 }

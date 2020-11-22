@@ -4,3 +4,4 @@ userData.json
 ./package-lock.json
 ./conf
 /CODE/default.js
+app/localStorage
