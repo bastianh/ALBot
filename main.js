@@ -1,46 +1,73 @@
+/*
 process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
+    process.exit()
 });
-var child_process = require("child_process");
+*/
+const {Worker, SHARE_ENV} = require('worker_threads');
+const child_process = require("child_process");
 
-var HttpWrapper = require("./app/httpWrapper");
+const HttpWrapper = require("./app/httpWrapper");
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 
-var bots = {}
-var inactiveBots = {};
+console.log("PID:", process.pid)
+
 var httpWrapper = undefined;
-var activeChildren = {};
-var codeStatus = {};
 var config = {};
+var bots = {}
 var started = new Date().getTime()
-socket = undefined
 
-const io = require('socket.io-client');
+let socketRemote = undefined;
+let telegramBot = undefined;
 
-function startCharacter(charId, charName, ip, port) {
-    console.log('start_character', charName, ip, port);
-    if (bots[charName] && bots[charName].status !== "off") return;
-    bots[charName] = {
-        status: "start",
-        charName: charName,
-        ip: ip,
-        port: port,
-        charId: charId
+function getInfo() {
+    let info = {};
+    for (let bot in bots) {
+        info[bot] = {
+            server: bots[bot].server,
+            status: bots[bot].status,
+            name: bots[bot].name,
+            bwi: bots[bot].bwi,
+            lastConnect: bots[bot].lastConnect,
+        }
     }
+    return info
 }
 
 async function main() {
     config.manager = process.env.HOST;
     config.manager_token = process.env.TOKEN;
-    const socket_host = process.env.SOCKET_HOST || config.manager;
     let initialCharacterConfig = undefined
     if (!config.manager_token || !config.manager) {
         console.warn("missing host or token")
         process.exit()
     }
+    socketRemote = new Worker("./remote.js", {
+        workerData: {
+            token: config.manager_token,
+            host: process.env.SOCKET_HOST || config.manager
+        }, env: SHARE_ENV
+    })
+    socketRemote.on('exit', (code) => {
+        if (code !== 0) console.log(`Remote stopped with exit code ${code}`);
+    });
+    socketRemote.on('message', msg => {
+        switch (msg.type) {
+            case 'startCharacter':
+                startGame(msg);
+                break;
+            case 'exit':
+                process.exit();
+                break;
+            default:
+                console.log("unhandled remote", msg);
+        }
+        console.log("message", msg)
+    });
+
     try {
         const configCall = await axios.get(`${config.manager}/api/info/albot`, {headers: {'Authorization': config.manager_token}})
         fs.writeFileSync("CODE/default.js", configCall.data.code)
@@ -57,41 +84,8 @@ async function main() {
         process.exit()
     }
 
-    httpWrapper = new HttpWrapper(config.auth, config.auth.split("-")[1], config.auth.split("-")[0]);
+    httpWrapper = new HttpWrapper(config.auth);
     setInterval(updateCharacters, 30000);
-
-    const socket_url = `${socket_host}/albot?token=${config.manager_token}`
-
-    console.log("connecting socket:" + socket_url)
-
-    const socket = io(socket_url, {transport: ['websocket']})
-
-    socket.on('connect', (d) => {
-        console.log("socket.io connected", socket_host);
-    });
-
-    socket.on('connect_error', (d) => {
-        console.log("socket.io error", socket, d);
-    });
-
-    socket.on('connect_timeout', (d) => {
-        console.log("socket.io timeout", d);
-    });
-
-    socket.on('kill_albot', () => {
-        console.log("exiting albot...")
-        process.exit()
-    });
-
-    socket.on('start_character', (arg1) => {
-        startCharacter(arg1['char_id'], arg1['char_name'], arg1.ip, arg1.port)
-    });
-
-    socket.on('stop_character', (arg1) => {
-        console.log("stop character", arg1)
-        if (!bots[arg1.char_name] || bots[arg1.char_name].status === "off") return;
-        bots[arg1.char_name].stop = true;
-    });
 
     /*
     // starting pathfinding daemon
@@ -126,13 +120,33 @@ async function main() {
             }
             // console.log(bot.charName, bot.status)
         }
+        let info = getInfo();
         const time = new Date().getTime();
         const upTime = time - started;
-        socket.emit("info", {bots, time, upTime})
-    }, 2500)
+        socketRemote.postMessage({type: "info", info, time, upTime})
+    }, 1000)
 
     // autostart
-    setTimeout(autoConnect, 5000, initialCharacterConfig);
+    setTimeout(autoConnect, 2000, initialCharacterConfig);
+    telegramBot = startTelegramBot()
+}
+
+function startTelegramBot() {
+    return new Worker('./bot.js', {env: SHARE_ENV})
+        .on('message', function (event) {
+            console.log("M", event)
+            switch (event.type) {
+                case "info":
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(getInfo())})
+                    break;
+                case "config":
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(config)})
+                    break;
+            }
+        })
+        .on('exit', () => {
+            console.log("telegram bot exit");
+        });
 }
 
 function autoConnect(initialCharacterConfig) {
@@ -143,10 +157,13 @@ function autoConnect(initialCharacterConfig) {
                 console.warn("autostart " + cdata.name + " server " + cdata.autoconnect + "not found!")
                 continue;
             }
-            startCharacter(cdata.id, cdata.name, server.addr, server.port)
+            startGame({
+                charId: cdata.id,
+                charName: cdata.name,
+                server: cdata.autoconnect
+            })
         }
     }
-
 }
 
 function updateChildrenData() {
@@ -200,8 +217,17 @@ async function updateCharacters() {
     */
 }
 
-function startGame(charName, args) {
-    let childProcess = child_process.fork("./app/game", args, {
+function startGame(args) {
+    const charId = args.charId;
+    const charName = args.charName;
+    const localBot = bots[charId] = (bots[charId] || {status: "off"});
+    const server = config.servers[args.server];
+    console.log("startGame", args);
+    if (!server || localBot.status !== "off") return;
+    localBot.status = "starting";
+    localBot.name = charName
+    localBot.server = server.key;
+    const childProcess = child_process.fork("./app/game", [config.auth, server.addr, server.port, charId, "default.js"], {
         stdio: [0, 1, 2, 'ipc'],
         execArgv: [
             // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
@@ -210,56 +236,46 @@ function startGame(charName, args) {
         ]
     });
 
+    localBot.process = childProcess;
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "error") {
-            bots[charName].status = "error";
+            localBot.status = "error";
+            localBot.process = undefined;
+            telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
             childProcess.kill();
-            for (var i in activeChildren) {
-                if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                    activeChildren[i] = null;
-                    codeStatus[i] = "loading"
-                }
-            }
         } else if (m.type === "status" && m.status === "initialized") {
-            activeChildren[charName] = childProcess;
-            bots[charName].status = "initialized";
-            bots[charName].pid = childProcess.pid;
+            localBot.status = "initialized";
         } else if (m.type === "status" && m.status === "disconnected") {
+            localBot.status = "error";
+            localBot.process = undefined;
             childProcess.kill();
-            for (var i in activeChildren) {
-                if (activeChildren.hasOwnProperty(i) && activeChildren[i] === childProcess) {
-                    activeChildren[i] = null;
-                    codeStatus[i] = "loading"
+            setTimeout(startGame, 2000, args)
+        } else if (m.type === "bwiUpdate") {
+            localBot.bwi = m.data;
+        } else if (m.type === "startupClient") {
+            localBot.status = "running"
+            localBot.lastConnect = new Date().getTime();
+            // codeStatus[m.characterName] = "code";
+            // updateChildrenData();
+        } else if (m.type === "send_cm") {
+            let sent = false;
+            for (let bot in bots) {
+                if (bots[bot].name === m.characterName && bots[bot].process) {
+                    bots[bot].process.send({
+                        type: "on_cm",
+                        from: m.from,
+                        data: m.data,
+                    })
+                    sent = true;
                 }
             }
-            // BotWebInterface.SocketServer.getPublisher().removeInterface(botInterface);
-            startGame(charName, args);
-            updateChildrenData();
-        } else if (m.type === "bwiUpdate") {
-            bots[charName].bwi = m.data;
-        } else if (m.type === "bwiPush") {
-            // botInterface.pushData(m.name, m.data);
-        } else if (m.type === "startupClient") {
-            activeChildren[m.characterName] = childProcess;
-            bots[m.characterName].status = "running"
-            bots[m.characterName].lastConnect = new Date().getTime();
-            codeStatus[m.characterName] = "code";
-            updateChildrenData();
-        } else if (m.type === "send_cm") {
-            if (activeChildren[m.characterName]) {
-                activeChildren[m.characterName].send({
-                    type: "on_cm",
-                    from: m.from,
-                    data: m.data,
-                })
-            } else {
-                childProcess.send({
-                    type: "send_cm_failed",
-                    characterName: m.characterName,
-                    data: m.data,
-                });
-            }
+            if (!sent) childProcess.send({
+                type: "send_cm_failed",
+                characterName: m.characterName,
+                data: m.data,
+            });
+
         } else if (m.type === "start_character") {
             /*            let bot = inactiveBots[m.name];
                         if (bot && !activeChildren[m.name]) {
@@ -285,6 +301,10 @@ function startGame(charName, args) {
                 });
             }, error => {
             })
+        } else if (m.type === "log_message") {
+            if (telegramBot) telegramBot.postMessage(m);
+        } else {
+            console.log("unknown call", m)
         }
     });
 }
