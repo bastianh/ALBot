@@ -1,10 +1,10 @@
-/*
+
 process.on('uncaughtException', function (exception) {
     console.log(exception);
     console.log(exception.stack);
     process.exit()
 });
-*/
+
 const {Worker, SHARE_ENV} = require('worker_threads');
 const child_process = require("child_process");
 
@@ -123,7 +123,7 @@ async function main() {
         let info = getInfo();
         const time = new Date().getTime();
         const upTime = time - started;
-        socketRemote.postMessage({type: "info", info, time, upTime})
+        if (socketRemote) socketRemote.postMessage({type: "info", info, time, upTime})
     }, 1000)
 
     // autostart
@@ -151,6 +151,9 @@ function startTelegramBot() {
 
 function autoConnect(initialCharacterConfig) {
     for (const cdata of initialCharacterConfig) {
+        if (process.env.AUTOCONNECT) {
+            cdata.autoconnect = process.env.AUTOCONNECT == cdata.name ? "USI" : undefined;
+        }
         if (cdata.autoconnect) {
             const server = config.servers[cdata.autoconnect];
             if (!server) {

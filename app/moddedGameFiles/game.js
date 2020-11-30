@@ -336,6 +336,7 @@ function code_button() {
 }
 
 function log_in(a, e, c, f) {
+    console.log("log in",a,e,c,f);
     real_id = e;
     /*
     if (!f) {
@@ -437,6 +438,10 @@ function disconnect() {
 }
 
 function position_map() {
+    if (!character && !map) {
+        console.warn("no character and map",character,map);
+        return;
+    }
     if (character) {
         map.real_x = character.real_x,
             map.real_y = character.real_y
@@ -1533,7 +1538,7 @@ function init_socket() {
             }
         });
     }
-    add_log("Connecting to the server.");
+    console.log("Connecting to the server.");
     socket_ready = false;
     socket_welcomed = false;
     socket.on("connect", function () {
@@ -3655,12 +3660,15 @@ function init_socket() {
         character.items[data.num].p = data.p
     });
     socket.on("end", function (data) {
+        console.log("socket end")
     });
     socket.on("disconnect", function () {
+        console.log("socket disconnect")
         socket.destroy();
         disconnect()
     });
     socket.on("disconnect_reason", function (reason) {
+        console.log("socket disconnect reason", reason)
         disconnect_reason = reason;
         disconnect()
     });

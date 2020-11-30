@@ -342,7 +342,7 @@ Game.prototype.init = function () {
         }
     });
     socket.on("start", function () {
-
+        console.log("SOCKET START");
 
         var hitLog = [];
         socket.on("hit", function (data) {
@@ -438,11 +438,13 @@ Game.prototype.init = function () {
         }, 3000)
     });
     socket.on("disconnect", function () {
+        console.log("SOCKET DISCONNECT");
         self.emit("disconnected", "nothing");
         process.send({type: "status", status: "disconnected"});
         self.stop();
     });
     socket.on("game_error", function (data) {
+        console.log("GAME_ERROR ");
         if ("Failed: ingame" == data) {
             setTimeout(function () {
                 console.log("Retrying for " + character_to_load);

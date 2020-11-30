@@ -10,20 +10,24 @@
   "author": "Patric Wellershaus",
   "license": "GNU GPLv3.0",
   "dependencies": {
-    "axios": "^0.19.2",
+    "axios": "^0.21.0",
     "bot-web-interface": "1.1.2",
     "cheerio": "1.0.0-rc.3",
     "extend": "3.0.2",
-    "form-data": "^2.3.3",
+    "form-data": "^3.0.0",
     "lodash": "^4.17.15",
-    "node-localstorage": "2.1.5",
-    "pngjs": "^3.4.0",
-    "promise": "8.0.3",
-    "request": "2.88.0",
-    "request-promise-native": "1.0.8",
+    "node-localstorage": "^2.1.6",
+    "pngjs": "^6.0.0",
+    "promise": "^8.1.0",
+    "request": "^2.88.2",
+    "request-promise-native": "^1.0.9",
     "socket.io": "^2.3.0",
-    "socket.io-client": "2.3.0",
+    "socket.io-client": "^2.3.0",
     "telegraf": "^3.38.0",
     "xmlhttprequest": "^1.8.0"
+  },
+  "volta": {
+    "node": "15.2.1",
+    "yarn": "1.22.10"
   }
 }
