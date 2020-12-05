@@ -16,7 +16,7 @@ process.on('unhandledRejection', function (exception) {
     console.log("Unhandled Rejection");
     console.log(exception);
     console.log(exception.stack);
-    process.send({type: "status", status: "error", "reason": "Unhandled Rejection", exception: exception.toString()});
+    // process.send({type: "status", status: "error", "reason": "Unhandled Rejection", exception: exception.toString()});
     //process.exit(-1);
 });
 

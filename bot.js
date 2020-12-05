@@ -1,6 +1,8 @@
 const {Telegraf, Telegram} = require('telegraf')
 const axios = require('axios');
 var {workerData, parentPort} = require('worker_threads');
+const extra = require('telegraf/extra')
+const markup = extra.markdown()
 
 axios.defaults.headers.common['Authorization'] = process.env.TOKEN;
 axios.defaults.baseURL = process.env.HOST;
@@ -25,7 +27,7 @@ async function setupBot(token) {
     const telegram = new Telegram(token)
 
     async function sendMessage(text) {
-        if (chatId) telegram.sendMessage(chatId, text)
+        if (chatId) telegram.sendMessage(chatId, text, markup)
         else console.log("Telegram (no chatId", text);
     }
 
@@ -36,7 +38,7 @@ async function setupBot(token) {
                 await sendMessage(`${data.name}: ${data.message}`)
                 break;
             case "send_code":
-                await sendMessage("<code>"+data.text+"</code>")
+                await sendMessage("```"+data.text+"```")
                 break;
         }
     });
