@@ -894,115 +894,57 @@ function sync_entity(c, a) {
 }
 
 function process_entities() {
-
-    for (var key in future_entities.monsters) {
-        var future_monster = future_entities.monsters[key];
-        var monster = entities[future_monster.id];
+    for (var a in future_entities.monsters) {
+        var b = future_entities.monsters[a]
+          , monster = entities[b.id];
         if (!monster) {
-            if (future_monster.dead) {
-                continue
-            }
-            if (gtest) {
-                return
-            }
+            if (b.dead)
+                continue;
+            if (gtest)
+                return;
             try {
-                monster = entities[future_monster.id] = add_monster(future_monster);
-                monster.drawn = false;
-                monster.resync = true
-            } catch (c) {
-                console.log("EMAIL HELLO@ADVENTURE.LAND WITH THIS: " + JSON.stringify(future_monster))
-                console.log(c)
-                if (is_sdk) {
-                    alert(c + " " + JSON.stringify(b))
-                }
+                monster = entities[b.id] = add_monster(b),
+                monster.drawn = !1,
+                monster.resync = !0
+            } catch (e) {
+                console.log("EMAIL HELLO@ADVENTURE.LAND WITH THIS: " + JSON.stringify(b)),
+                is_sdk && alert(e + " " + JSON.stringify(b))
             }
-            monster.drawn = false;
-            monster.resync = true
         }
-        if (future_monster.dead) {
-            monster.dead = true;
-            continue
-        }
-        sync_entity(monster, future_monster);
-        (future_monster.events || []).forEach(function (g) {
-            if (g.type == "mhit") {
-                var h = get_entity(g.p)
-                    , e = get_entity(g.m);
-                if (!h) {
-                    return
-                }
-                if (g.evade && h) {
-                    sfx("whoosh", h.real_x, h.real_y);
-                    return
-                }
-                if (g.combo && h && h.me && h.targets < 3) {
-                    add_log(G.monsters[monster.mtype].name + " dealt combined damage", "#DF513D");
-                    add_log("Scatter the party members!", "gray");
-                    call_code_function("on_combined_damage")
-                }
-                if (g.reflect) {
-                    if (!e) {
-                        return
-                    }
-                    sfx("reflect", e.real_x, e.real_y);
-                    d_text("-" + g.d, e, {
-                        color: "damage"
-                    });
-                    start_animation(e, "explode_c");
-                    d_line(h, e, {
-                        color: "reflect"
-                    })
-                } else {
-                    direction_logic(monster, h, "attack");
-                    d_text("-" + g.d, h, {
-                        color: "damage"
-                    });
-                    start_animation(h, monster.hit || "slash0");
-                    d_line(monster, h);
-                    if (in_arr(monster.hit, ["explode_a", "explode_c"])) {
-                        sfx("explosion")
-                    } else {
-                        sfx("monster_hit")
-                    }
-                    if (g.k) {
-                        start_animation(h, "spark0")
-                    }
-                }
-            } else {
-                if (g.type == "heal") {
-                    var e = get_entity(g.m);
-                    d_text("+" + g.heal, e, {
-                        color: colors.heal
-                    });
-                    start_animation(e, "heal")
-                }
-            }
-        })
+        b.dead ? monster.dead =  true : (sync_entity(monster, b),
+        (b.events || []).forEach(function(a) {
+            original_onevent.apply(socket, [{
+                type: 2,
+                nsp: "/",
+                data: a
+            }])
+        }),
+        ctarget && ctarget.id == monster.id && (ctarget = monster),
+        xtarget && xtarget.id == monster.id && (xtarget = monster))
     }
-    for (var f in future_entities.players) {
-        var a = future_entities.players[f];
-        var monster = entities[a.id];
-        if (character && character.id == a.id) {
-            continue
+    for (a in future_entities.players) {
+        b = future_entities.players[a];
+        monster = entities[b.id];
+        var d = true;
+        monster && (d = monster.rip);
+        if (!character || character.id != b.id) {
+            if (!monster) {
+                if (b.dead)
+                    continue;
+                b.external = true;
+                b.player = true;
+                monster = entities[b.id] = add_character(b);
+                monster.drawn = !1;
+                monster.resync = true;
+                500 > mssince(last_light) && start_animation(monster, "light")
+            }            
+            b.dead ? monster.dead =  true : (sync_entity(monster, b),
+            !d && monster.rip && call_code_function("trigger_event", "death", {
+                id: monster.id
+            }),
+            ctarget && ctarget.id == monster.id && (ctarget = monster),
+            xtarget && xtarget.id == monster.id && (xtarget = monster))
         }
-        if (!monster) {
-            if (a.dead) {
-                continue
-            }
-            a.external = true;
-            a.player = true;
-            monster = entities[a.id] = add_character(a);
-            monster.drawn = false;
-            monster.resync = true;
-            if (mssince(last_light) < 500) {
-                start_animation(monster, "light")
-            }
-        }
-        if (a.dead) {
-            monster.dead = true;
-            continue
-        }
-        sync_entity(monster, a)
     }
 }
 
@@ -1549,7 +1491,7 @@ function init_socket() {
     var original_emit = socket.emit;
 
     var logging_incoming = false;
-    var logging_call  = true;
+    var logging_call  = false;
     socket.emit = function (packet) {
         var is_transport = in_arr(arguments && arguments["0"], ["transport", "enter", "leave"]);
         if (logging_call) {
@@ -1643,6 +1585,9 @@ function init_socket() {
         position_map();
         new_map_logic("map", data);
         call_code_function("trigger_event", "new_map", data)
+        handle_entities(data.entities, {
+            new_map: true
+        })
     });
     socket.on("start", function (data) {
         /* no $ in ALBot
@@ -2561,10 +2506,22 @@ function init_socket() {
                                                                                                                                                                                                                                                                                                                                                                                                                                 if (data.q > 1) {
                                                                                                                                                                                                                                                                                                                                                                                                                                     additional = "(x" + data.q + ")"
                                                                                                                                                                                                                                                                                                                                                                                                                                 }
-                                                                                                                                                                                                                                                                                                                                                                                                                                if (response == "item_received") {
-                                                                                                                                                                                                                                                                                                                                                                                                                                    add_chat("", "Received " + G.items[data.item].name + additional + " from " + data.name, "#6AB3FF")
+                                                                                                                                                                                                                                                                                                                                                                                                                                if (response == "item_received") {                                                                                                                                                                                                                                                                                                                                                                                                                                
+                                                                                                                                                                                                                                                                                                                                                                                                                                    add_chat("", "Received " + G.items[data.item].name + additional + " from " + data.name, "#6AB3FF");
+                                                                                                                                                                                                                                                                                                                                                                                                                                    call_code_function("trigger_character_event", "item_received", {
+                                                                                                                                                                                                                                                                                                                                                                                                                                        name: data.item,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        q: data.q,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        num: data.num,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        from: data.name
+                                                                                                                                                                                                                                                                                                                                                                                                                                    });
                                                                                                                                                                                                                                                                                                                                                                                                                                 } else {
-                                                                                                                                                                                                                                                                                                                                                                                                                                    add_chat("", "Sent " + G.items[data.item].name + additional + " to " + data.name, "#6AB3FF")
+                                                                                                                                                                                                                                                                                                                                                                                                                                    add_chat("", "Sent " + G.items[data.item].name + additional + " to " + data.name, "#6AB3FF");
+                                                                                                                                                                                                                                                                                                                                                                                                                                    call_code_function("trigger_character_event", "item_sent", {
+                                                                                                                                                                                                                                                                                                                                                                                                                                        name: data.item,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        q: data.q,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        num: data.num,
+                                                                                                                                                                                                                                                                                                                                                                                                                                        to: data.name
+                                                                                                                                                                                                                                                                                                                                                                                                                                    });
                                                                                                                                                                                                                                                                                                                                                                                                                                 }
                                                                                                                                                                                                                                                                                                                                                                                                                             } else {
                                                                                                                                                                                                                                                                                                                                                                                                                                 if (response == "add_item") {
@@ -2584,9 +2541,17 @@ function init_socket() {
                                                                                                                                                                                                                                                                                                                                                                                                                                             add_chat("", "Not enough gold", colors.gold)
                                                                                                                                                                                                                                                                                                                                                                                                                                         } else {
                                                                                                                                                                                                                                                                                                                                                                                                                                             if (response == "gold_sent") {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                call_code_function("trigger_character_event", "gold_sent", {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    amount: data.gold,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    to: data.name
+                                                                                                                                                                                                                                                                                                                                                                                                                                                });
                                                                                                                                                                                                                                                                                                                                                                                                                                                 add_chat("", "Sent " + to_pretty_num(data.gold) + " gold to " + data.name, colors.gold)
                                                                                                                                                                                                                                                                                                                                                                                                                                             } else {
                                                                                                                                                                                                                                                                                                                                                                                                                                                 if (response == "gold_received" && !data.name) {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    call_code_function("trigger_character_event", "gold_received", {
+                                                                                                                                                                                                                                                                                                                                                                                                                                                        amount: data.gold,
+                                                                                                                                                                                                                                                                                                                                                                                                                                                        from: data.name
+                                                                                                                                                                                                                                                                                                                                                                                                                                                    });
                                                                                                                                                                                                                                                                                                                                                                                                                                                     add_log("Received " + to_pretty_num(data.gold) + " gold", "gray")
                                                                                                                                                                                                                                                                                                                                                                                                                                                 } else {
                                                                                                                                                                                                                                                                                                                                                                                                                                                     if (response == "gold_received") {
@@ -2961,6 +2926,10 @@ function init_socket() {
             }
             sfx("chat");
             add_chat(data.owner, data.message)
+            call_code_function("trigger_event", "chat", {
+                from: data.owner,
+                message: data.message
+            })
         })
     });
     socket.on("ui", function (data) {
@@ -3072,7 +3041,7 @@ function init_socket() {
                                         color: "gold"
                                     })
                                 }
-                                call_code_function("trigger_event", "gold", {
+                                call_code_function("trigger_event", "gold_sent", {
                                     sender: data.sender,
                                     receiver: data.receiver,
                                     gold: data.gold
@@ -3086,7 +3055,7 @@ function init_socket() {
                                             color: "item"
                                         })
                                     }
-                                    call_code_function("trigger_event", "item", {
+                                    call_code_function("trigger_event", "item_sent", {
                                         sender: data.sender,
                                         receiver: data.receiver,
                                         item: data.item,
@@ -3600,6 +3569,10 @@ function init_socket() {
             if (in_arr(cid, docked)) {
                 add_chat(data.owner, data.message, "#CD7879")
             }
+            call_code_function("trigger_character_event", "pm", {
+                from: data.owner,
+                message: data.message
+            })
         })
     });
     socket.on("partym", function (data) {
@@ -3618,6 +3591,10 @@ function init_socket() {
             if (in_arr("party", docked)) {
                 add_chat(data.owner, data.message, "#46A0C6")
             }
+            call_code_function("trigger_character_event", "partym", {
+                from: data.owner,
+                message: data.message
+            })
         })
     });
     socket.on("drop", function (data) {
@@ -3678,6 +3655,7 @@ function init_socket() {
         if (!attacker) {
             return
         }
+        var target = get_entity(data.target);
         var event_data = {
             actor: data.attacker,
             target: data.target,
@@ -3699,6 +3677,8 @@ function init_socket() {
                 resolve_deferred("attack", event_data)
             }
         }
+        call_code_function("trigger_event", "action", data);
+        if (target.me) call_code_function("trigger_character_event", "incoming", data)
     });
     socket.on("hit", function (data) {
         var entity = get_entity(data.id);
@@ -3726,6 +3706,9 @@ function init_socket() {
             delete attack_data.damage
         }
         if (entity && entity.me) {
+            call_code_function("trigger_character_event", "hit", attack_data)
+        }
+        if (owner && owner.me) {
             call_code_function("trigger_character_event", "target_hit", attack_data)
         }
         call_code_function("trigger_event", "hit", attack_data);
@@ -3877,6 +3860,7 @@ function init_socket() {
                 reason: "not_found"
             })
         }
+        call_code_function("trigger_event", "death", data);
         data.death = true;
         on_disappear(data)
     });
