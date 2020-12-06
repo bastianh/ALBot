@@ -1487,7 +1487,7 @@ function init_socket() {
         console.log("Socket connection established");
     });
 
-    var original_onevent = socket.onevent;
+    original_onevent = socket.onevent;
     var original_emit = socket.emit;
 
     var logging_incoming = false;
