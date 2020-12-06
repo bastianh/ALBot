@@ -1548,11 +1548,12 @@ function init_socket() {
     var original_onevent = socket.onevent;
     var original_emit = socket.emit;
 
-    var logging = false;
+    var logging_incoming = false;
+    var logging_call  = true;
     socket.emit = function (packet) {
         var is_transport = in_arr(arguments && arguments["0"], ["transport", "enter", "leave"]);
-        if (logging) {
-            console.log("CALL", JSON.stringify(arguments) + " " + new Date())
+        if (logging_call) {
+            console.log( new Date().getTime(), "CALL", JSON.stringify(arguments))
         }
         if (!(transporting && is_transport && ssince(transporting) < 8)) {
             original_emit.apply(socket, arguments);
@@ -1562,8 +1563,8 @@ function init_socket() {
         }
     };
     socket.onevent = function (packet) {
-        if (logging) {
-            console.log("INCOMING", JSON.stringify(arguments) + " " + new Date())
+        if (logging_incoming) {
+            console.log(new Date().getTime(), "INCOMING", JSON.stringify(arguments))
         }
         original_onevent.apply(socket, arguments)
     };

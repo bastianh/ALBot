@@ -38,8 +38,8 @@ async function setupBot(token) {
                 await sendMessage(`${data.name}: ${data.message}`)
                 break;
             case "send_code":
-                await sendMessage("```"+data.text+"```")
-                break;
+                await sendMessage("```\n"+data.text+"\n```")
+                break; 
         }
     });
 

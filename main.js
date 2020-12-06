@@ -137,10 +137,10 @@ function startTelegramBot() {
             console.log("M", event)
             switch (event.type) {
                 case "info":
-                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(getInfo())})
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(getInfo(), null, 2)})
                     break;
                 case "config":
-                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(config)})
+                    telegramBot.postMessage({type: "send_code", text: JSON.stringify(config, null, 2)})
                     break;
             }
         })
@@ -152,7 +152,7 @@ function startTelegramBot() {
 function autoConnect(initialCharacterConfig) {
     for (const cdata of initialCharacterConfig) {
         if (process.env.AUTOCONNECT) {
-            cdata.autoconnect = process.env.AUTOCONNECT == cdata.name ? "USI" : undefined;
+            cdata.autoconnect = process.env.AUTOCONNECT == cdata.name ? ( process.env.SERVER || "EUII") : undefined;
         }
         if (cdata.autoconnect) {
             const server = config.servers[cdata.autoconnect];
@@ -220,17 +220,26 @@ async function updateCharacters() {
     */
 }
 
-function startGame(args) {
+function restartGame(args) {
     const charId = args.charId;
     const charName = args.charName;
-    const localBot = bots[charId] = (bots[charId] || {status: "off"});
+    const localBot = bots[charId] = (bots[charId] || {status: "off", lastTry: new Date().getTime()});
+    localBot['status'] = "off"
+    setTimeout(startGame, 500, args)
+}
+
+function startGame(args) {
+    console.log("ARGS", args)
+    const charId = args.charId;
+    const charName = args.charName;
+    const localBot = bots[charId] = (bots[charId] || {status: "off", lastTry: new Date().getTime()});
     const server = config.servers[args.server];
     console.log("startGame", args);
     if (!server || localBot.status !== "off") return;
     localBot.status = "starting";
     localBot.name = charName
     localBot.server = server.key;
-    const childProcess = child_process.fork("./app/game", [config.auth, server.addr, server.port, charId, "default.js"], {
+    const childProcess = child_process.fork("./app/game", [config.auth, server.addr, server.port, charId, process.env.SCRIPT || "default.js"], {
         stdio: [0, 1, 2, 'ipc'],
         execArgv: [
             // '--inspect=' + (9000 + Math.floor(Math.random() * 1000)),
@@ -238,7 +247,7 @@ function startGame(args) {
             //"--max_old_space_size=f4096",
         ]
     });
-
+    telegramBot.postMessage({type: "send_code", text: charName + " connect "+childProcess.pid})
     localBot.process = childProcess;
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
@@ -247,13 +256,15 @@ function startGame(args) {
             localBot.process = undefined;
             telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
             childProcess.kill();
+            setTimeout(restartGame, 100, args)
         } else if (m.type === "status" && m.status === "initialized") {
             localBot.status = "initialized";
         } else if (m.type === "status" && m.status === "disconnected") {
             localBot.status = "error";
             localBot.process = undefined;
-            childProcess.kill();
-            setTimeout(startGame, 2000, args)
+            telegramBot.postMessage({type: "send_code", text: charName + ": disconnected"})
+            childProcess.kill();           
+            setTimeout(restartGame, 100, args)
         } else if (m.type === "bwiUpdate") {
             localBot.bwi = m.data;
         } else if (m.type === "startupClient") {
