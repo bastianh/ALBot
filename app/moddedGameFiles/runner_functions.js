@@ -671,7 +671,6 @@ process.on("message", function (m) {
     } else if (m.type === "api_response") {
         if (parent.call_code_function) { 
             parent.call_code_function("trigger_event", m.type, m.data);
-            console.warn("parent.call_code_function called")
         } else {
             console.warn("parent.call_code_function not available")
         }

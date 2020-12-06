@@ -13,8 +13,6 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 
-console.log("PID:", process.pid)
-
 var httpWrapper = undefined;
 var config = {};
 var bots = {}
@@ -128,7 +126,7 @@ async function main() {
 
     // autostart
     setTimeout(autoConnect, 2000, initialCharacterConfig);
-    telegramBot = startTelegramBot()
+    if (!process.env.AUTOCONNECT) telegramBot = startTelegramBot()
 }
 
 function startTelegramBot() {
@@ -223,18 +221,18 @@ async function updateCharacters() {
 function restartGame(args) {
     const charId = args.charId;
     const charName = args.charName;
-    const localBot = bots[charId] = (bots[charId] || {status: "off", lastTry: new Date().getTime()});
+    const localBot = bots[charId]
+    const elapsed = (new Date().getTime()) -  localBot.lastTry
+    console.log("elapsed", elapsed/1000, "start in", (60000 - elapsed)/1000 )
     localBot['status'] = "off"
-    setTimeout(startGame, 500, args)
+    setTimeout(startGame, 60000 - elapsed, args)
 }
 
 function startGame(args) {
-    console.log("ARGS", args)
     const charId = args.charId;
     const charName = args.charName;
     const localBot = bots[charId] = (bots[charId] || {status: "off", lastTry: new Date().getTime()});
     const server = config.servers[args.server];
-    console.log("startGame", args);
     if (!server || localBot.status !== "off") return;
     localBot.status = "starting";
     localBot.name = charName
@@ -247,14 +245,14 @@ function startGame(args) {
             //"--max_old_space_size=f4096",
         ]
     });
-    telegramBot.postMessage({type: "send_code", text: charName + " connect "+childProcess.pid})
+    telegramBot && telegramBot.postMessage({type: "send_code", text: charName + " connect "+childProcess.pid})
     localBot.process = childProcess;
     childProcess.on('message', (m) => {
         // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "error") {
             localBot.status = "error";
             localBot.process = undefined;
-            telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
+            telegramBot && telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
             childProcess.kill();
             setTimeout(restartGame, 100, args)
         } else if (m.type === "status" && m.status === "initialized") {
@@ -262,7 +260,7 @@ function startGame(args) {
         } else if (m.type === "status" && m.status === "disconnected") {
             localBot.status = "error";
             localBot.process = undefined;
-            telegramBot.postMessage({type: "send_code", text: charName + ": disconnected"})
+            telegramBot && telegramBot.postMessage({type: "send_code", text: charName + ": disconnected"})
             childProcess.kill();           
             setTimeout(restartGame, 100, args)
         } else if (m.type === "bwiUpdate") {

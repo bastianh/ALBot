@@ -3678,7 +3678,7 @@ function init_socket() {
             }
         }
         call_code_function("trigger_event", "action", data);
-        if (target.me) call_code_function("trigger_character_event", "incoming", data)
+        if (target && target.me) call_code_function("trigger_character_event", "incoming", data)
     });
     socket.on("hit", function (data) {
         var entity = get_entity(data.id);
@@ -3882,57 +3882,13 @@ function init_socket() {
     });
     var erec = 0;
     socket.on("entities", function (data) {
-        last_entities_received = data;
-        if (data.type != "all" && pulling_all) {
-            return console.log("discarded 'entities' - pulling_all")
-        }
-        if (data.type == "all") {
-            pulling_all = false;
-            if (!first_entities) {
-                first_entities = true;
-                if (character_to_load) {
-                    try {
-                        log_in(user_id, character_to_load, user_auth)
-                    } catch (e) {
-                        console.log(e)
-                    }
-                }
-            }
-        }
-        erec++;
-        if (data.type == "all" && log_flags.entities) {
-            console.log("all entities " + new Date())
-        }
-        if (erec % 20 == 1) {
-        }
-        /* no pako on ALBot
-        if (erec % 100 == 1 && window.pako) {
-            window.lastentities = data;
-            var rs = rough_size(data), ms;
-            var cs = new Date();
-            var enc = pako.deflate(msgpack.encode(data));
-            ms = mssince(cs);
-            console.log("entities%100 rough_size: " + rs + " enc_length: " + enc.length + " enc_in: " + ms + "ms")
-        }*/
-        if (character) {
-            if (data.xy) {
-                last_refxy = new Date(),
-                    ref_x = data.x,
-                    ref_y = data.y
-            } else {
-                last_refxy = 0
-            }
-        }
-        for (var i = 0; i < data.players.length; i++) {
-            future_entities.players[data.players[i].id] = data.players[i]
-        }
-        for (var i = 0; i < data.monsters.length; i++) {
-            var old_events = future_entities.players[data.monsters[i].id] && future_entities.players[data.monsters[i].id].events;
-            future_entities.monsters[data.monsters[i].id] = data.monsters[i];
-            if (old_events) {
-                future_entities.monsters[data.monsters[i].id].events = old_events + future_entities.monsters[data.monsters[i].id].events
-            }
-        }
+        if (data["in"] != current_in)
+        return console.log("Disregarded stale 'entities' response");
+        "all" == data.type && (future_entities = {
+            players: {},
+            monsters: {}
+        });
+        handle_entities(data)
     });
     socket.on("poke", function (data) {
         draw_trigger(function () {
@@ -4490,6 +4446,32 @@ function old_move(a, b) {
 }
 
 function map_click_release() {
+}
+
+function handle_entities(data, options) {
+    last_entities_received = data;
+    if ("all" == data.type && (options && options.new_map || (clean_house = !0),
+    !first_entities && (first_entities =  true,
+    character_to_load))) {
+        set_status("LOADING " + character_to_load);
+        try {
+            log_in(user_id, character_to_load, user_auth)
+        } catch (d) {
+            console.log(d)
+        }
+        character_to_load = !1
+    }
+    "all" == data.type && log_flags.entities && console.log("all entities " + new Date);
+    character && (data.xy ? (last_refxy = new Date,
+    ref_x = data.x,
+    ref_y = data.y) : last_refxy = 0);
+    for (options = 0; options < data.players.length; options++)
+        future_entities.players[data.players[options].id] = data.players[options];
+    for (options = 0; options < data.monsters.length; options++) {
+        var c = future_entities.players[data.monsters[options].id] && future_entities.players[data.monsters[options].id].events;
+        future_entities.monsters[data.monsters[options].id] = data.monsters[options];
+        c && (future_entities.monsters[data.monsters[options].id].events = c + future_entities.monsters[data.monsters[options].id].events)
+    }
 }
 
 function draw_entities() {
