@@ -442,6 +442,7 @@ Game.prototype.init = function () {
         self.emit("disconnected", "nothing");
         process.send({type: "status", status: "disconnected"});
         self.stop();
+        process.exit(0)
     });
     socket.on("game_error", function (data) {
         console.log("GAME_ERROR ", data);

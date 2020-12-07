@@ -2372,20 +2372,6 @@ function exchange_buy(c, b) {
     }
 }
 
-function compound(item0, item1, item2, scroll_num, offering_num) {
-    if (scroll_num == null || typeof item0 === "undefined" || typeof item1 === "undefined" || typeof item2 === "undefined") {
-        console.log("INVALID")
-    } else {
-        socket.emit("compound", {
-            items: [item0, item1, item2],
-            scroll_num: scroll_num,
-            offering_num: offering_num,
-            clevel: (character.items[item0].level || 0)
-        });
-    }
-}
-
-
 function craft(i0, i1, i2, i3, i4, i5, i6, i7, i8) {
     var a = [i0, i1, i2, i3, i4, i5, i6, i7, i8];
     socket.emit("craft", {
