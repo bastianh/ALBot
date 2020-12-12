@@ -10,14 +10,19 @@ axios.defaults.baseURL = process.env.HOST;
 let chatId = null;
 
 async function main() {
-    const request = await axios.get("/api/albot/telegram")
-    if (request.status === 200) {
-        chatId = request.data.chat_id;
-        const token = request.data.bot_token;
-        if (token) {
-            setupBot(token)
-        } else {
-            console.warn("missing telegram bot token!")
+    let botToken = process.env.BOT_TOKEN
+    if (botToken) {
+        setupBot(botToken)
+    } else {
+        const request = await axios.get("/api/albot/telegram")
+        if (request.status === 200) {
+            chatId = request.data.chat_id;
+            const token = request.data.bot_token;
+            if (token) {
+                setupBot(token)
+            } else {
+                console.warn("missing telegram bot token!")
+            }
         }
     }
 }

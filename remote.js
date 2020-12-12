@@ -5,17 +5,17 @@ const socket = io(`${workerData.host}/albot?token=${workerData.token}`, {transpo
 let connected = false;
 
 socket.on('connect', d => {
-    console.log("socket.io connected", workerData.host);
+    // console.log("socket.io connected", workerData.host);
     connected = true;
 });
 
 socket.on('connect_error', d => {
-    console.log("socket.io error", socket, d);
+    console.warn("socket.io error", socket, d);
     connected = false;
 });
 
 socket.on('connect_timeout', d => {
-    console.log("socket.io timeout", d);
+    console.warn("socket.io timeout", d);
     connected = false;
 });
 

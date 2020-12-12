@@ -1574,13 +1574,13 @@ function init_socket() {
                 character.direction = odir;
                 restore_dimensions(character)
             }
+            character.tp = data.effect;
         }
-        character.tp = data.effect;
         var cm_timer = new Date();
         if (create) {
             create_map()
         }
-        console.log("create_map: " + mssince(cm_timer));
+        // console.log("create_map: " + mssince(cm_timer));
         pull_all = true;
         position_map();
         new_map_logic("map", data);

@@ -223,9 +223,10 @@ function restartGame(args) {
     const charName = args.charName;
     const localBot = bots[charId]
     const elapsed = (new Date().getTime()) -  localBot.lastTry
-    console.log("elapsed", elapsed/1000, "start in", (60000 - elapsed)/1000 )
+    let nextStart = Math.max(60000 - elapsed, 100)
+    console.log("Restart ", args.charName, " elapsed", elapsed/1000, "start in", nextStart/1000)
     localBot['status'] = "off"
-    setTimeout(startGame, 60000 - elapsed, args)
+    setTimeout(startGame,nextStart, args)
 }
 
 function startGame(args) {
