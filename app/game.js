@@ -446,6 +446,10 @@ Game.prototype.init = function () {
     });
     socket.on("game_error", function (data) {
         console.log("GAME_ERROR ", data);
+        if (character_to_load == false) {
+            process.send({type: "status", status: "error", "reason": "GAME_ERROR " + data});
+            process.exit(1)
+        }
         if ("Failed: ingame" == data) {
             setTimeout(function () {
                 console.log("Retrying for " + character_to_load);

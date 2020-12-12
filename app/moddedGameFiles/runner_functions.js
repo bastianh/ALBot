@@ -672,7 +672,7 @@ process.on("message", function (m) {
         if (parent.call_code_function) { 
             parent.call_code_function("trigger_event", m.type, m.data);
         } else {
-            console.warn("parent.call_code_function not available")
+            console.warn("parent.call_code_function not available", m.type)
         }
     }
 })
