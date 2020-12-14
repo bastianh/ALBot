@@ -30,6 +30,7 @@ function getInfo() {
             name: bots[bot].name,
             bwi: bots[bot].bwi,
             lastConnect: bots[bot].lastConnect,
+            charId: bot
         }
     }
     return info
@@ -59,6 +60,13 @@ async function main() {
                 break;
             case 'exit':
                 process.exit();
+                break;
+            case 'stopCharacter':
+                if (bots[msg.charId]) {
+                    bots[msg.charId].process.kill()
+                    bots[msg.charId].process = undefined
+                    bots[msg.charId].status = "off"    
+                }
                 break;
             default:
                 console.log("unhandled remote", msg);
@@ -223,7 +231,7 @@ function restartGame(args) {
     const charName = args.charName;
     const localBot = bots[charId]
     const elapsed = (new Date().getTime()) -  localBot.lastTry
-    let nextStart = Math.max(60000 - elapsed, 100)
+    let nextStart = Math.max(90000 - elapsed, 100)
     console.log("Restart ", args.charName, " elapsed", elapsed/1000, "start in", nextStart/1000)
     localBot['status'] = "off"
     setTimeout(startGame,nextStart, args)
@@ -252,16 +260,16 @@ function startGame(args) {
         // console.log("MESSAGE INFO", m);
         if (m.type === "status" && m.status === "error") {
             localBot.status = "error";
-            localBot.process = undefined;
             telegramBot && telegramBot.postMessage({type: "send_code", text: charName + " error:" + JSON.stringify(m)})
+            localBot.process = undefined;
             childProcess.kill();
             setTimeout(restartGame, 100, args)
         } else if (m.type === "status" && m.status === "initialized") {
             localBot.status = "initialized";
         } else if (m.type === "status" && m.status === "disconnected") {
             localBot.status = "error";
-            localBot.process = undefined;
             telegramBot && telegramBot.postMessage({type: "send_code", text: charName + ": disconnected"})
+            localBot.process = undefined;
             childProcess.kill();           
             setTimeout(restartGame, 100, args)
         } else if (m.type === "bwiUpdate") {
@@ -274,7 +282,7 @@ function startGame(args) {
         } else if (m.type === "send_cm") {
             let sent = false;
             for (let bot in bots) {
-                if (bots[bot].name === m.characterName && bots[bot].process) {
+                if (bots[bot].name === m.characterName && bots[bot].process &&!bots[bot].process.killed) {
                     bots[bot].process.send({
                         type: "on_cm",
                         from: m.from,
@@ -308,7 +316,7 @@ function startGame(args) {
             headers.cookie = "auth=" + config.auth;
             axios.post(`https://adventure.land/api/${m.command}`, form, {headers}).then(response => {
                 let data = response.data[0];
-                childProcess.send({
+                if (!childProcess.killed) childProcess.send({
                     type: "api_response",
                     data: data,
                 });
